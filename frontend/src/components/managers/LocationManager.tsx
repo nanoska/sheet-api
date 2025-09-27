@@ -115,8 +115,7 @@ const LocationManager: React.FC = () => {
     setSubmitting(true);
     try {
       if (editingLocation) {
-        // Update logic would go here
-        console.log('Update location:', formData);
+        await apiService.updateLocation(editingLocation.id, formData as any);
       } else {
         await apiService.createLocation(formData as any);
       }
@@ -127,6 +126,16 @@ const LocationManager: React.FC = () => {
       setError('Error saving location');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Delete this location?')) return;
+    try {
+      await apiService.deleteLocation(id);
+      await loadLocations();
+    } catch (err) {
+      setError('Error deleting location');
     }
   };
 
@@ -192,9 +201,14 @@ const LocationManager: React.FC = () => {
                   </Typography>
                 </Box>
 
-                <IconButton size="small" onClick={() => handleOpenDialog(location)}>
-                  <Edit size={16} />
-                </IconButton>
+                <Box>
+                  <IconButton size="small" onClick={() => handleOpenDialog(location)}>
+                    <Edit size={16} />
+                  </IconButton>
+                  <IconButton size="small" onClick={() => handleDelete(location.id)} color="error">
+                    <Trash2 size={16} />
+                  </IconButton>
+                </Box>
               </Box>
 
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>

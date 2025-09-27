@@ -21,19 +21,25 @@ The system manages musical themes, their arrangements (versions), instruments wi
 - **Rebuild**: `docker-compose up --build`
 
 ### Backend (Django) - Local Development
+- **Setup virtual environment**: `cd backend && python -m venv env && source env/bin/activate` (Linux/Mac) or `env\Scripts\activate` (Windows)
+- **Install dependencies**: `pip install -r requirements.txt`
 - **Start development server**: `python manage.py runserver`
 - **Run migrations**: `python manage.py migrate`
 - **Create migrations**: `python manage.py makemigrations`
 - **Create superuser**: `python manage.py createsuperuser`
 - **Run tests**: `python manage.py test`
+- **Run specific test**: `python manage.py test music.tests.TestThemeModel`
 - **Django shell**: `python manage.py shell`
 - **Collect static files**: `python manage.py collectstatic`
+- **Check for issues**: `python manage.py check`
 
 ### Frontend (React) - Local Development
+- **Navigate to frontend**: `cd frontend`
 - **Install dependencies**: `npm install`
-- **Start development server**: `npm start`
+- **Start development server**: `npm start` (runs on http://localhost:3000)
 - **Build for production**: `npm run build`
 - **Run tests**: `npm test`
+- **Run tests without watch**: `npm test -- --coverage --passWithNoTests`
 
 ## Architecture
 
@@ -135,9 +141,9 @@ Located in `music/utils.py`:
 - Local static/media file serving
 
 **Docker Compose Services:**
-- `db`: PostgreSQL database
-- `backend`: Django with gunicorn
-- `frontend`: React app served by nginx
+- `db`: PostgreSQL database (port 5432)
+- `backend`: Django with gunicorn (port 8000)
+- `frontend`: React app served by nginx (port 3000 in development, port 80 in production)
 
 ## Key Files Reference
 
@@ -189,3 +195,21 @@ The frontend has been completely redesigned with a focus on simplicity and moder
 - **Modal Forms**: Centralized create/edit forms with validation and error handling
 - **Visual Feedback**: Loading states, success indicators, and clear error messages
 - **Accessibility**: ARIA labels, keyboard navigation, and screen reader support
+
+## Development Workflow
+
+### Common Development Tasks
+- **Reset database**: `python manage.py flush` (Django) or delete `db.sqlite3` file
+- **View API documentation**: Start backend and visit `http://localhost:8000/swagger/` or `http://localhost:8000/redoc/`
+- **Check API endpoints**: `python manage.py show_urls` (if django-extensions installed)
+- **Create sample data**: `python backend/create_sample_data.py` (if exists)
+
+### Testing Strategy
+- **Backend tests**: Unit tests for models, views, and utilities in `music/tests.py` and `events/tests.py`
+- **Frontend tests**: Component tests using React Testing Library
+- **API testing**: Use tools like Postman or curl against the Django API endpoints
+
+### File Structure Notes
+- **Media files**: Stored in `backend/media/` with subdirectories for themes, versions, and sheet music
+- **Static files**: Collected in `backend/staticfiles/` for production
+- **Frontend build**: Generated in `frontend/build/` and served by nginx in production

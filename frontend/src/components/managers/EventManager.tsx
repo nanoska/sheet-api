@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
-  Grid,
   Typography,
   Button,
   Dialog,
@@ -16,6 +15,8 @@ import {
   CircularProgress,
   Alert,
   Autocomplete,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import {
   Plus,
@@ -25,6 +26,8 @@ import {
   Search,
   MapPin,
   Clock,
+  DollarSign,
+  Users,
 } from 'lucide-react';
 import { Event, Location, Repertoire } from '../../types/api';
 import { apiService } from '../../services/api';
@@ -51,8 +54,8 @@ interface EventFormData {
   description: string;
   start_datetime: string;
   end_datetime: string;
-  location_id: number | null;
-  repertoire_id: number | null;
+  location: number | null;
+  repertoire: number | null;
   is_public: boolean;
   max_attendees: number | null;
   price: number;
@@ -76,8 +79,8 @@ const EventManager: React.FC = () => {
     description: '',
     start_datetime: '',
     end_datetime: '',
-    location_id: null,
-    repertoire_id: null,
+    location: null,
+    repertoire: null,
     is_public: false,
     max_attendees: null,
     price: 0,
@@ -114,8 +117,8 @@ const EventManager: React.FC = () => {
         description: event.description || '',
         start_datetime: event.start_datetime.slice(0, 16),
         end_datetime: event.end_datetime.slice(0, 16),
-        location_id: event.location_id || null,
-        repertoire_id: event.repertoire_id || null,
+        location: event.location?.id || null,
+        repertoire: event.repertoire?.id || null,
         is_public: event.is_public,
         max_attendees: event.max_attendees || null,
         price: event.price,
@@ -129,8 +132,8 @@ const EventManager: React.FC = () => {
         description: '',
         start_datetime: '',
         end_datetime: '',
-        location_id: null,
-        repertoire_id: null,
+        location: null,
+        repertoire: null,
         is_public: false,
         max_attendees: null,
         price: 0,
@@ -279,9 +282,25 @@ const EventManager: React.FC = () => {
                 )}
 
                 {event.price > 0 && (
-                  <Typography variant="body2" color="primary.main">
-                    ${event.price}
-                  </Typography>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <DollarSign size={14} />
+                    <Typography variant="body2" color="primary.main">
+                      ${event.price}
+                    </Typography>
+                  </Box>
+                )}
+
+                {event.max_attendees && (
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Users size={14} />
+                    <Typography variant="body2" color="text.secondary">
+                      Max: {event.max_attendees}
+                    </Typography>
+                  </Box>
+                )}
+
+                {event.is_public && (
+                  <Chip size="small" label="Público" color="secondary" />
                 )}
               </Box>
             </Card>
@@ -354,8 +373,8 @@ const EventManager: React.FC = () => {
               <Autocomplete
                 options={locations}
                 getOptionLabel={(location) => location.name}
-                value={locations.find(l => l.id === formData.location_id) || null}
-                onChange={(_, value) => setFormData(prev => ({ ...prev, location_id: value?.id || null }))}
+                value={locations.find(l => l.id === formData.location) || null}
+                onChange={(_, value) => setFormData(prev => ({ ...prev, location: value?.id || null }))}
                 renderInput={(params) => <TextField {...params} label="Location" />}
                 sx={{ flex: 1 }}
               />
@@ -363,8 +382,8 @@ const EventManager: React.FC = () => {
               <Autocomplete
                 options={repertoires}
                 getOptionLabel={(repertoire) => repertoire.name}
-                value={repertoires.find(r => r.id === formData.repertoire_id) || null}
-                onChange={(_, value) => setFormData(prev => ({ ...prev, repertoire_id: value?.id || null }))}
+                value={repertoires.find(r => r.id === formData.repertoire) || null}
+                onChange={(_, value) => setFormData(prev => ({ ...prev, repertoire: value?.id || null }))}
                 renderInput={(params) => <TextField {...params} label="Repertoire" />}
                 sx={{ flex: 1 }}
               />
@@ -377,6 +396,42 @@ const EventManager: React.FC = () => {
               multiline
               rows={3}
               fullWidth
+            />
+
+            <Box display="flex" gap={2}>
+              <TextField
+                label="Price"
+                type="number"
+                value={formData.price}
+                onChange={(e) => setFormData(prev => ({ ...prev, price: Number(e.target.value) || 0 }))}
+                fullWidth
+                InputProps={{
+                  startAdornment: <DollarSign size={16} style={{ marginRight: 4 }} />
+                }}
+                helperText="0 for free entry"
+              />
+
+              <TextField
+                label="Max Attendees"
+                type="number"
+                value={formData.max_attendees || ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, max_attendees: Number(e.target.value) || null }))}
+                fullWidth
+                InputProps={{
+                  startAdornment: <Users size={16} style={{ marginRight: 4 }} />
+                }}
+                helperText="Leave empty to use location capacity"
+              />
+            </Box>
+
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.is_public}
+                  onChange={(e) => setFormData(prev => ({ ...prev, is_public: e.target.checked }))}
+                />
+              }
+              label="Public Event"
             />
 
             <Box display="flex" gap={2} justifyContent="flex-end" mt={2}>

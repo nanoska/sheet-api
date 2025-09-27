@@ -1,9 +1,29 @@
 from django.contrib import admin
+from django.contrib.admin import AdminSite
 from .models import Theme, Instrument, Version, SheetMusic
 
 
+class SheetMusicAdminSite(AdminSite):
+    site_header = "Sheet Music Admin - Dark Mode"
+    site_title = "Sheet Music Admin"
+    index_title = "Welcome to Sheet Music Administration"
+
+    class Media:
+        css = {
+            'all': ('admin/css/dark_theme.css',)
+        }
+
+
+class DarkModeModelAdmin(admin.ModelAdmin):
+    """Base admin class with dark mode styling"""
+    class Media:
+        css = {
+            'all': ('admin/css/dark_theme.css',)
+        }
+
+
 @admin.register(Theme)
-class ThemeAdmin(admin.ModelAdmin):
+class ThemeAdmin(DarkModeModelAdmin):
     list_display = ['title', 'artist', 'tonalidad', 'created_at', 'versions_count']
     list_filter = ['tonalidad', 'artist', 'created_at']
     search_fields = ['title', 'artist', 'description']
@@ -28,7 +48,7 @@ class ThemeAdmin(admin.ModelAdmin):
 
 
 @admin.register(Instrument)
-class InstrumentAdmin(admin.ModelAdmin):
+class InstrumentAdmin(DarkModeModelAdmin):
     list_display = ['name', 'family', 'afinacion', 'created_at', 'sheet_music_count']
     list_filter = ['family', 'afinacion']
     search_fields = ['name']
@@ -40,7 +60,7 @@ class InstrumentAdmin(admin.ModelAdmin):
 
 
 @admin.register(Version)
-class VersionAdmin(admin.ModelAdmin):
+class VersionAdmin(DarkModeModelAdmin):
     list_display = ['title', 'theme', 'type', 'created_at', 'sheet_music_count']
     list_filter = ['theme', 'type', 'created_at']
     search_fields = ['title', 'theme__title', 'notes']
@@ -56,7 +76,7 @@ class VersionAdmin(admin.ModelAdmin):
 
 
 @admin.register(SheetMusic)
-class SheetMusicAdmin(admin.ModelAdmin):
+class SheetMusicAdmin(DarkModeModelAdmin):
     list_display = ['version', 'instrument', 'type', 'clef', 'tonalidad_relativa', 'created_at']
     list_filter = ['instrument', 'version__theme', 'type', 'clef', 'created_at']
     search_fields = ['version__title', 'version__theme__title', 'instrument__name']

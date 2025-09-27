@@ -19,8 +19,6 @@ import {
 import {
   Plus,
   FileText,
-  Edit,
-  Trash2,
   Upload,
   Search,
   Download,

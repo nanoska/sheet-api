@@ -16,8 +16,9 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemSecondaryAction,
+  MenuItem,
 } from '@mui/material';
+import { useDropzone } from 'react-dropzone';
 import {
   Plus,
   List as ListIcon,
@@ -25,6 +26,10 @@ import {
   Trash2,
   Search,
   Music,
+  FileText,
+  Eye,
+  Upload,
+  Download,
 } from 'lucide-react';
 import { Repertoire, Version } from '../../types/api';
 import { apiService } from '../../services/api';
@@ -43,6 +48,24 @@ const RepertoireManager: React.FC = () => {
   const [editingRepertoire, setEditingRepertoire] = useState<Repertoire | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Estados para gestión de versiones
+  const [versionsDialogOpen, setVersionsDialogOpen] = useState(false);
+  const [selectedRepertoire, setSelectedRepertoire] = useState<Repertoire | null>(null);
+  const [sheetMusicDialogOpen, setSheetMusicDialogOpen] = useState(false);
+  const [selectedVersion, setSelectedVersion] = useState<Version | null>(null);
+
+  // Estados para edición de versiones
+  const [versionEditDialogOpen, setVersionEditDialogOpen] = useState(false);
+  const [editingVersion, setEditingVersion] = useState<Version | null>(null);
+  const [versionFormData, setVersionFormData] = useState({
+    title: '',
+    type: 'STANDARD',
+    notes: '',
+    image: null as File | null,
+    audio_file: null as File | null,
+    mus_file: null as File | null,
+  });
 
   const [formData, setFormData] = useState<RepertoireFormData>({
     name: '',
@@ -115,6 +138,56 @@ const RepertoireManager: React.FC = () => {
     }
   };
 
+  const handleViewVersions = (repertoire: Repertoire) => {
+    setSelectedRepertoire(repertoire);
+    setVersionsDialogOpen(true);
+  };
+
+  const handleViewSheetMusic = (version: Version) => {
+    setSelectedVersion(version);
+    setSheetMusicDialogOpen(true);
+  };
+
+  const handleEditVersion = (version: Version) => {
+    setEditingVersion(version);
+    setVersionFormData({
+      title: version.title,
+      type: version.type,
+      notes: version.notes || '',
+      image: null,
+      audio_file: null,
+      mus_file: null,
+    });
+    setVersionEditDialogOpen(true);
+  };
+
+  const handleUpdateVersion = async () => {
+    if (!editingVersion || !versionFormData.title.trim()) return;
+
+    setSubmitting(true);
+    try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('title', versionFormData.title);
+      formDataToSend.append('type', versionFormData.type);
+      formDataToSend.append('notes', versionFormData.notes);
+
+      if (versionFormData.image) formDataToSend.append('image', versionFormData.image);
+      if (versionFormData.audio_file) formDataToSend.append('audio_file', versionFormData.audio_file);
+      if (versionFormData.mus_file) formDataToSend.append('mus_file', versionFormData.mus_file);
+
+      await apiService.updateVersion(editingVersion.id, formDataToSend);
+
+      // Recargar datos
+      await loadData();
+      setVersionEditDialogOpen(false);
+      setEditingVersion(null);
+    } catch (err) {
+      setError('Error updating version');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const filteredRepertoires = repertoires.filter(repertoire =>
     repertoire.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     repertoire.description?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -180,6 +253,14 @@ const RepertoireManager: React.FC = () => {
                 </Box>
 
                 <Box>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleViewVersions(repertoire)}
+                    color="primary"
+                    title="View Versions & Sheet Music"
+                  >
+                    <Eye size={16} />
+                  </IconButton>
                   <IconButton size="small" onClick={() => handleOpenDialog(repertoire)}>
                     <Edit size={16} />
                   </IconButton>
@@ -279,6 +360,1130 @@ const RepertoireManager: React.FC = () => {
           </Box>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog para ver versiones del repertorio */}
+      <Dialog
+        open={versionsDialogOpen}
+        onClose={() => setVersionsDialogOpen(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>
+          Versiones en "{selectedRepertoire?.name}"
+          <Typography variant="body2" color="text.secondary">
+            Gestiona las partituras de cada versión
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          {selectedRepertoire && (
+            <VersionsGrid
+              repertoire={selectedRepertoire}
+              onViewSheetMusic={handleViewSheetMusic}
+              onEditVersion={handleEditVersion}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para gestionar partituras de una versión */}
+      <Dialog
+        open={sheetMusicDialogOpen}
+        onClose={() => setSheetMusicDialogOpen(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>
+          Partituras - {selectedVersion?.title}
+          <Typography variant="body2" color="text.secondary">
+            {selectedVersion && (selectedVersion as any).theme_title}
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          {selectedVersion && (
+            <SheetMusicForVersionInRepertoire
+              versionId={selectedVersion.id}
+              onClose={() => setSheetMusicDialogOpen(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para editar versión */}
+      <Dialog
+        open={versionEditDialogOpen}
+        onClose={() => setVersionEditDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Editar Versión</DialogTitle>
+        <DialogContent>
+          <VersionEditForm
+            formData={versionFormData}
+            setFormData={setVersionFormData}
+            onSubmit={handleUpdateVersion}
+            onCancel={() => setVersionEditDialogOpen(false)}
+            submitting={submitting}
+          />
+        </DialogContent>
+      </Dialog>
+
+    </Box>
+  );
+};
+
+// Componente para formulario de edición de versión
+const VersionEditForm: React.FC<{
+  formData: any;
+  setFormData: (data: any) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+  submitting: boolean;
+}> = ({ formData, setFormData, onSubmit, onCancel, submitting }) => {
+
+  const VERSION_TYPES = [
+    { value: 'STANDARD', label: 'Standard' },
+    { value: 'ENSAMBLE', label: 'Ensamble' },
+    { value: 'DUETO', label: 'Dueto' },
+    { value: 'GRUPO_REDUCIDO', label: 'Grupo Reducido' },
+  ];
+
+  const { getRootProps: getImageRootProps, getInputProps: getImageInputProps } = useDropzone({
+    accept: { 'image/*': ['.jpg', '.jpeg', '.png', '.webp'] },
+    multiple: false,
+    onDrop: (files) => setFormData((prev: any) => ({ ...prev, image: files[0] })),
+  });
+
+  const { getRootProps: getAudioRootProps, getInputProps: getAudioInputProps } = useDropzone({
+    accept: { 'audio/*': ['.mp3', '.wav', '.ogg'] },
+    multiple: false,
+    onDrop: (files) => setFormData((prev: any) => ({ ...prev, audio_file: files[0] })),
+  });
+
+  const { getRootProps: getMusRootProps, getInputProps: getMusInputProps } = useDropzone({
+    accept: { 'application/*': ['.mscz', '.mscx'] },
+    multiple: false,
+    onDrop: (files) => setFormData((prev: any) => ({ ...prev, mus_file: files[0] })),
+  });
+
+  return (
+    <Box display="flex" flexDirection="column" gap={3} pt={1}>
+      <TextField
+        label="Título"
+        value={formData.title}
+        onChange={(e) => setFormData((prev: any) => ({ ...prev, title: e.target.value }))}
+        required
+        fullWidth
+      />
+
+      <TextField
+        select
+        label="Tipo"
+        value={formData.type}
+        onChange={(e) => setFormData((prev: any) => ({ ...prev, type: e.target.value }))}
+        fullWidth
+      >
+        {VERSION_TYPES.map((option) => (
+          <MenuItem key={option.value} value={option.value}>
+            {option.label}
+          </MenuItem>
+        ))}
+      </TextField>
+
+      <TextField
+        label="Notas"
+        value={formData.notes}
+        onChange={(e) => setFormData((prev: any) => ({ ...prev, notes: e.target.value }))}
+        multiline
+        rows={3}
+        fullWidth
+      />
+
+      <Box display="flex" gap={2}>
+        <Box
+          {...getImageRootProps()}
+          sx={{
+            flex: 1,
+            p: 2,
+            border: '2px dashed #333',
+            borderRadius: 1,
+            textAlign: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <input {...getImageInputProps()} />
+          <Upload size={20} />
+          <Typography variant="caption" display="block">
+            {formData.image ? formData.image.name : 'Imagen'}
+          </Typography>
+        </Box>
+        <Box
+          {...getAudioRootProps()}
+          sx={{
+            flex: 1,
+            p: 2,
+            border: '2px dashed #333',
+            borderRadius: 1,
+            textAlign: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <input {...getAudioInputProps()} />
+          <Music size={20} />
+          <Typography variant="caption" display="block">
+            {formData.audio_file ? formData.audio_file.name : 'Audio'}
+          </Typography>
+        </Box>
+        <Box
+          {...getMusRootProps()}
+          sx={{
+            flex: 1,
+            p: 2,
+            border: '2px dashed #333',
+            borderRadius: 1,
+            textAlign: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <input {...getMusInputProps()} />
+          <FileText size={20} />
+          <Typography variant="caption" display="block">
+            {formData.mus_file ? formData.mus_file.name : 'MuseScore'}
+          </Typography>
+        </Box>
+      </Box>
+
+      <Box display="flex" gap={2} justifyContent="flex-end" mt={2}>
+        <Button onClick={onCancel}>Cancelar</Button>
+        <Button
+          variant="contained"
+          onClick={onSubmit}
+          disabled={submitting || !formData.title.trim()}
+        >
+          {submitting ? <CircularProgress size={20} /> : 'Actualizar'}
+        </Button>
+      </Box>
+    </Box>
+  );
+};
+
+// Componente para mostrar versiones de un repertorio
+const VersionsGrid: React.FC<{
+  repertoire: Repertoire;
+  onViewSheetMusic: (version: Version) => void;
+  onEditVersion: (version: Version) => void;
+}> = ({ repertoire, onViewSheetMusic, onEditVersion }) => {
+  const [sheetMusicCounts, setSheetMusicCounts] = useState<Record<number, number>>({});
+
+  // Estados para dialog de información de versión
+  const [versionInfoDialogOpen, setVersionInfoDialogOpen] = useState(false);
+  const [selectedVersionForInfo, setSelectedVersionForInfo] = useState<Version | null>(null);
+
+  useEffect(() => {
+    // Cargar conteo de partituras para cada versión
+    const loadSheetMusicCounts = async () => {
+      if (!repertoire.versions) return;
+
+      const counts: Record<number, number> = {};
+      for (const rv of repertoire.versions) {
+        try {
+          const response = await fetch(
+            `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/v1/sheet-music/?version=${rv.version.id}`,
+            {
+              headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+            }
+          );
+          const data = await response.json();
+          counts[rv.version.id] = Array.isArray(data) ? data.length : (data.results?.length || 0);
+        } catch (err) {
+          counts[rv.version.id] = 0;
+        }
+      }
+      setSheetMusicCounts(counts);
+    };
+
+    loadSheetMusicCounts();
+  }, [repertoire.versions]);
+
+  if (!repertoire.versions || repertoire.versions.length === 0) {
+    return (
+      <Box textAlign="center" py={4}>
+        <Typography variant="h6" color="text.secondary">
+          No hay versiones en este repertorio
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Agrega versiones desde el gestor de versiones
+        </Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <Box
+      display="grid"
+      gridTemplateColumns="repeat(auto-fill, minmax(300px, 1fr))"
+      gap={2}
+      mt={2}
+    >
+      {repertoire.versions.map((rv) => (
+        <Card key={rv.version.id} sx={{ p: 2 }}>
+          <Box display="flex" alignItems="center" gap={2} mb={2}>
+            <Avatar sx={{ backgroundColor: 'secondary.main' }}>
+              <Music size={20} />
+            </Avatar>
+            <Box flexGrow={1}>
+              <Typography variant="h6">
+                {rv.version.title}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {(rv.version as any).theme_title}
+              </Typography>
+              <Chip
+                size="small"
+                label={(rv.version as any).type_display || rv.version.type}
+                color="secondary"
+                sx={{ mt: 0.5 }}
+              />
+            </Box>
+          </Box>
+
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Box display="flex" alignItems="center" gap={1}>
+              <FileText size={14} />
+              <Typography variant="body2" color="text.secondary">
+                {sheetMusicCounts[rv.version.id] || 0} partituras
+              </Typography>
+            </Box>
+
+            <Box>
+              <IconButton
+                size="small"
+                onClick={() => {
+                  setSelectedVersionForInfo(rv.version);
+                  setVersionInfoDialogOpen(true);
+                }}
+                color="secondary"
+                title="Información de la Versión"
+              >
+                <Eye size={16} />
+              </IconButton>
+              <IconButton
+                size="small"
+                onClick={() => onEditVersion(rv.version)}
+                title="Editar Versión"
+              >
+                <Edit size={16} />
+              </IconButton>
+              <IconButton
+                size="small"
+                onClick={() => onViewSheetMusic(rv.version)}
+                color="primary"
+                title="Gestionar Partituras"
+              >
+                <FileText size={16} />
+              </IconButton>
+            </Box>
+          </Box>
+
+          {rv.notes && (
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ mt: 1, fontStyle: 'italic' }}
+            >
+              "{rv.notes}"
+            </Typography>
+          )}
+        </Card>
+      ))}
+
+      {/* Dialog de información de la versión */}
+      <Dialog
+        open={versionInfoDialogOpen}
+        onClose={() => setVersionInfoDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Información de la Versión</DialogTitle>
+        <DialogContent>
+          {selectedVersionForInfo && (
+            <VersionInfoContentRepertoire
+              version={selectedVersionForInfo}
+              themeName={(selectedVersionForInfo as any).theme_title || 'Tema'}
+              onAddSheetMusic={onViewSheetMusic}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </Box>
+  );
+};
+
+// Componente reutilizado del VersionManager para gestionar partituras
+const SheetMusicForVersionInRepertoire: React.FC<{
+  versionId: number;
+  onClose: () => void;
+}> = ({ versionId, onClose }) => {
+  const [sheetMusic, setSheetMusic] = useState<any[]>([]);
+  const [instruments, setInstruments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    instrument: null as number | null,
+    type: 'MELODIA_PRINCIPAL',
+    clef: 'SOL',
+    file: null as File | null,
+  });
+
+  // Estados para edición de partituras
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingSheet, setEditingSheet] = useState<any | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    instrument: null as number | null,
+    type: 'MELODIA_PRINCIPAL',
+    clef: 'SOL',
+  });
+
+  // Estados para dialog de información de partitura
+  const [sheetInfoDialogOpen, setSheetInfoDialogOpen] = useState(false);
+  const [selectedSheetForInfo, setSelectedSheetForInfo] = useState<any | null>(null);
+
+  const SHEET_TYPES = [
+    { value: 'MELODIA_PRINCIPAL', label: 'Melodía Principal' },
+    { value: 'MELODIA_SECUNDARIA', label: 'Melodía Secundaria' },
+    { value: 'ARMONIA', label: 'Armonía' },
+    { value: 'BAJO', label: 'Bajo' },
+  ];
+
+  const CLEF_TYPES = [
+    { value: 'SOL', label: 'Clave de Sol' },
+    { value: 'FA', label: 'Clave de Fa' },
+  ];
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    accept: { 'application/pdf': ['.pdf'] },
+    multiple: false,
+    onDrop: (files: File[]) => setFormData(prev => ({ ...prev, file: files[0] })),
+  });
+
+  useEffect(() => {
+    loadData();
+  }, [versionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadData = async () => {
+    try {
+      const [sheetsData, instrumentsData] = await Promise.all([
+        fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/v1/sheet-music/?version=${versionId}`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+        }).then(res => res.json()),
+        apiService.getInstruments(),
+      ]);
+      setSheetMusic(Array.isArray(sheetsData) ? sheetsData : (sheetsData as any).results || []);
+      setInstruments(Array.isArray(instrumentsData) ? instrumentsData : (instrumentsData as any).results || []);
+    } catch (err) {
+      console.error('Error loading sheet music:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.instrument || !formData.file) return;
+
+    try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('version', versionId.toString());
+      formDataToSend.append('instrument', formData.instrument.toString());
+      formDataToSend.append('type', formData.type);
+      formDataToSend.append('clef', formData.clef);
+      formDataToSend.append('file', formData.file);
+
+      await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/v1/sheet-music/`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+        body: formDataToSend,
+      });
+
+      await loadData();
+      setDialogOpen(false);
+      setFormData({ instrument: null, type: 'MELODIA_PRINCIPAL', clef: 'SOL', file: null });
+    } catch (err) {
+      console.error('Error uploading sheet music:', err);
+    }
+  };
+
+  const handleDelete = async (sheetId: number) => {
+    if (!window.confirm('¿Eliminar esta partitura?')) return;
+
+    try {
+      await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/v1/sheet-music/${sheetId}/`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+      });
+      await loadData();
+    } catch (err) {
+      console.error('Error deleting sheet music:', err);
+    }
+  };
+
+  const handleEditSheet = (sheet: any) => {
+    setEditingSheet(sheet);
+    setEditFormData({
+      instrument: sheet.instrument,
+      type: sheet.type,
+      clef: sheet.clef,
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleUpdateSheet = async () => {
+    if (!editingSheet || !editFormData.instrument) return;
+
+    try {
+      const updateData = {
+        instrument: editFormData.instrument,
+        type: editFormData.type,
+        clef: editFormData.clef,
+      };
+
+      await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/v1/sheet-music/${editingSheet.id}/`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      await loadData();
+      setEditDialogOpen(false);
+      setEditingSheet(null);
+    } catch (err) {
+      console.error('Error updating sheet music:', err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" py={4}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  return (
+    <Box>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant="h6">
+          Partituras ({sheetMusic.length})
+        </Typography>
+        <Button
+          variant="contained"
+          startIcon={<Plus size={16} />}
+          onClick={() => setDialogOpen(true)}
+        >
+          Agregar Partitura
+        </Button>
+      </Box>
+
+      <Box display="grid" gridTemplateColumns="repeat(auto-fill, minmax(300px, 1fr))" gap={2}>
+        {sheetMusic.map((sheet) => (
+          <Card key={sheet.id} sx={{ p: 2 }}>
+            <Box display="flex" alignItems="center" gap={2}>
+              <Avatar sx={{ backgroundColor: 'error.main' }}>
+                <FileText size={20} />
+              </Avatar>
+              <Box flexGrow={1}>
+                <Typography variant="subtitle2">
+                  {sheet.instrument_name}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {sheet.type_display} - {sheet.clef_display}
+                </Typography>
+                {sheet.tonalidad_relativa && (
+                  <Chip
+                    size="small"
+                    label={sheet.tonalidad_relativa}
+                    color="secondary"
+                    sx={{ ml: 1 }}
+                  />
+                )}
+              </Box>
+              <IconButton
+                size="small"
+                onClick={() => {
+                  setSelectedSheetForInfo(sheet);
+                  setSheetInfoDialogOpen(true);
+                }}
+                color="secondary"
+                title="Información de la Partitura"
+              >
+                <Eye size={16} />
+              </IconButton>
+              <IconButton
+                size="small"
+                onClick={() => handleEditSheet(sheet)}
+                title="Editar Partitura"
+              >
+                <Edit size={16} />
+              </IconButton>
+              <IconButton
+                size="small"
+                component="a"
+                href={sheet.file}
+                target="_blank"
+                color="primary"
+                title="Descargar PDF"
+              >
+                <Download size={16} />
+              </IconButton>
+              <IconButton
+                size="small"
+                onClick={() => handleDelete(sheet.id)}
+                color="error"
+                title="Eliminar Partitura"
+              >
+                <Trash2 size={16} />
+              </IconButton>
+            </Box>
+          </Card>
+        ))}
+      </Box>
+
+      {/* Dialog para agregar nueva partitura */}
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Agregar Partitura</DialogTitle>
+        <DialogContent>
+          <Box display="flex" flexDirection="column" gap={3} pt={1}>
+            <TextField
+              select
+              label="Instrumento"
+              value={instruments.find(i => i.id === formData.instrument)?.name || ''}
+              onChange={(e) => {
+                const instrument = instruments.find(i => i.name === e.target.value);
+                setFormData(prev => ({ ...prev, instrument: instrument?.id || null }));
+              }}
+              fullWidth
+              required
+            >
+              {instruments.map((instrument) => (
+                <MenuItem key={instrument.id} value={instrument.name}>
+                  {instrument.name}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <Box display="flex" gap={2}>
+              <TextField
+                select
+                label="Tipo"
+                value={formData.type}
+                onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value }))}
+                fullWidth
+              >
+                {SHEET_TYPES.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+
+              <TextField
+                select
+                label="Clave"
+                value={formData.clef}
+                onChange={(e) => setFormData(prev => ({ ...prev, clef: e.target.value }))}
+                fullWidth
+              >
+                {CLEF_TYPES.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Box>
+
+            <Box
+              {...getRootProps()}
+              sx={{
+                p: 3,
+                border: '2px dashed #333',
+                borderRadius: 1,
+                textAlign: 'center',
+                cursor: 'pointer',
+                backgroundColor: isDragActive ? 'action.hover' : 'transparent',
+              }}
+            >
+              <input {...getInputProps()} />
+              <Upload size={32} style={{ marginBottom: 8, opacity: 0.5 }} />
+              <Typography variant="body2">
+                {formData.file ? formData.file.name : 'Soltar archivo PDF o hacer clic'}
+              </Typography>
+            </Box>
+
+            <Box display="flex" gap={2} justifyContent="flex-end">
+              <Button onClick={() => setDialogOpen(false)}>Cancelar</Button>
+              <Button
+                variant="contained"
+                onClick={handleSubmit}
+                disabled={!formData.instrument || !formData.file}
+              >
+                Subir
+              </Button>
+            </Box>
+          </Box>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para editar partitura */}
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Editar Partitura</DialogTitle>
+        <DialogContent>
+          <Box display="flex" flexDirection="column" gap={3} pt={1}>
+            <TextField
+              select
+              label="Instrumento"
+              value={instruments.find(i => i.id === editFormData.instrument)?.name || ''}
+              onChange={(e) => {
+                const instrument = instruments.find(i => i.name === e.target.value);
+                setEditFormData(prev => ({ ...prev, instrument: instrument?.id || null }));
+              }}
+              fullWidth
+              required
+            >
+              {instruments.map((instrument) => (
+                <MenuItem key={instrument.id} value={instrument.name}>
+                  {instrument.name}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <Box display="flex" gap={2}>
+              <TextField
+                select
+                label="Tipo"
+                value={editFormData.type}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, type: e.target.value }))}
+                fullWidth
+              >
+                {SHEET_TYPES.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+
+              <TextField
+                select
+                label="Clave"
+                value={editFormData.clef}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, clef: e.target.value }))}
+                fullWidth
+              >
+                {CLEF_TYPES.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Box>
+
+            <Box display="flex" gap={2} justifyContent="flex-end">
+              <Button onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
+              <Button
+                variant="contained"
+                onClick={handleUpdateSheet}
+                disabled={!editFormData.instrument}
+              >
+                Actualizar
+              </Button>
+            </Box>
+          </Box>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de información de la partitura */}
+      <Dialog
+        open={sheetInfoDialogOpen}
+        onClose={() => setSheetInfoDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Información de la Partitura</DialogTitle>
+        <DialogContent>
+          {selectedSheetForInfo && (
+            <SheetMusicInfoContentRepertoire
+              sheet={selectedSheetForInfo}
+              versionTitle="Versión"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </Box>
+  );
+};
+
+// Componente para mostrar información completa de una versión en repertorio
+const VersionInfoContentRepertoire: React.FC<{
+  version: any;
+  themeName: string;
+  onAddSheetMusic?: (version: any) => void;
+}> = ({ version, themeName, onAddSheetMusic }) => {
+  const [sheetMusic, setSheetMusic] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadVersionData();
+  }, [version.id]);
+
+  const loadVersionData = async () => {
+    try {
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/v1/sheet-music/?version=${version.id}`,
+        {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+        }
+      );
+      const data = await response.json();
+      setSheetMusic(Array.isArray(data) ? data : data.results || []);
+    } catch (err) {
+      console.error('Error loading version data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" py={4}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  // Agrupar partituras por tipo
+  const groupedSheetMusic = sheetMusic.reduce((acc: Record<string, any[]>, sheet: any) => {
+    const type = sheet.type_display || 'Sin tipo';
+    if (!acc[type]) acc[type] = [];
+    acc[type].push(sheet);
+    return acc;
+  }, {} as Record<string, any[]>);
+
+  return (
+    <Box pt={1}>
+      {/* Información básica de la versión */}
+      <Box display="flex" gap={3} mb={4}>
+        {version.image && (
+          <Box
+            component="img"
+            src={version.image}
+            alt={version.title}
+            sx={{
+              width: 120,
+              height: 120,
+              objectFit: 'cover',
+              borderRadius: 2,
+            }}
+          />
+        )}
+        <Box flexGrow={1}>
+          <Typography variant="h4" gutterBottom>
+            {version.title}
+          </Typography>
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            {themeName}
+          </Typography>
+          <Chip
+            label={version.type_display || version.type}
+            color="secondary"
+            sx={{ mb: 2 }}
+          />
+          {version.notes && (
+            <Typography variant="body1" color="text.secondary">
+              {version.notes}
+            </Typography>
+          )}
+        </Box>
+      </Box>
+
+      {/* Estadísticas */}
+      <Box display="flex" gap={2} mb={3}>
+        <Card sx={{ p: 2, textAlign: 'center', flex: 1 }}>
+          <Typography variant="h4" color="primary.main">
+            {sheetMusic.length}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Partituras
+          </Typography>
+        </Card>
+        <Card sx={{ p: 2, textAlign: 'center', flex: 1 }}>
+          <Typography variant="h4" color="secondary.main">
+            {Object.keys(groupedSheetMusic).length}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Tipos
+          </Typography>
+        </Card>
+      </Box>
+
+      {/* Archivos de la versión */}
+      <Typography variant="h6" gutterBottom>
+        Archivos de la Versión
+      </Typography>
+      <Box display="flex" gap={2} mb={4}>
+        {/* Audio de la versión */}
+        {version.audio_file && (
+          <Card sx={{ p: 2, flex: 1 }}>
+            <Box display="flex" alignItems="center" gap={2} mb={2}>
+              <Avatar sx={{ backgroundColor: 'info.main' }}>
+                <Music size={20} />
+              </Avatar>
+              <Typography variant="subtitle2">
+                Audio
+              </Typography>
+            </Box>
+            <audio controls style={{ width: '100%' }}>
+              <source src={version.audio_file} type="audio/mpeg" />
+              Tu navegador no soporta el elemento de audio.
+            </audio>
+          </Card>
+        )}
+
+        {/* Archivo MuseScore */}
+        {version.mus_file && (
+          <Card sx={{ p: 2, flex: 1 }}>
+            <Box display="flex" alignItems="center" gap={2}>
+              <Avatar sx={{ backgroundColor: 'warning.main' }}>
+                <FileText size={20} />
+              </Avatar>
+              <Box flexGrow={1}>
+                <Typography variant="subtitle2">
+                  MuseScore
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Archivo de partitura
+                </Typography>
+              </Box>
+              <IconButton
+                component="a"
+                href={version.mus_file}
+                target="_blank"
+                color="primary"
+                title="Descargar archivo MuseScore"
+              >
+                <Download size={16} />
+              </IconButton>
+            </Box>
+          </Card>
+        )}
+      </Box>
+
+      {/* Partituras agrupadas por tipo */}
+      <Typography variant="h6" gutterBottom>
+        Partituras ({sheetMusic.length})
+      </Typography>
+
+      {Object.keys(groupedSheetMusic).length === 0 ? (
+        <Card sx={{ p: 3, textAlign: 'center' }}>
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            No hay partituras cargadas para esta versión
+          </Typography>
+          {onAddSheetMusic && (
+            <Button
+              variant="contained"
+              startIcon={<Plus size={16} />}
+              onClick={() => onAddSheetMusic(version)}
+              color="primary"
+            >
+              Agregar Partituras
+            </Button>
+          )}
+        </Card>
+      ) : (
+        Object.entries(groupedSheetMusic).map(([type, sheets]) => (
+          <Box key={type} mb={3}>
+            <Typography variant="subtitle1" color="primary.main" gutterBottom>
+              {type} ({sheets.length})
+            </Typography>
+            <Box display="grid" gridTemplateColumns="repeat(auto-fill, minmax(300px, 1fr))" gap={2}>
+              {sheets.map((sheet) => (
+                <Card key={sheet.id} sx={{ p: 2 }}>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <Avatar sx={{ backgroundColor: 'error.main' }}>
+                      <FileText size={20} />
+                    </Avatar>
+                    <Box flexGrow={1}>
+                      <Typography variant="subtitle2">
+                        {sheet.instrument_name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {sheet.clef_display}
+                      </Typography>
+                      {sheet.tonalidad_relativa && (
+                        <Box mt={0.5}>
+                          <Chip
+                            size="small"
+                            label={sheet.tonalidad_relativa}
+                            color="secondary"
+                          />
+                        </Box>
+                      )}
+                    </Box>
+                    <IconButton
+                      component="a"
+                      href={sheet.file}
+                      target="_blank"
+                      color="primary"
+                      title="Descargar PDF"
+                    >
+                      <Download size={16} />
+                    </IconButton>
+                  </Box>
+                </Card>
+              ))}
+            </Box>
+          </Box>
+        ))
+      )}
+    </Box>
+  );
+};
+
+// Componente para mostrar información completa de una partitura en repertorio
+const SheetMusicInfoContentRepertoire: React.FC<{
+  sheet: any;
+  versionTitle: string;
+}> = ({ sheet, versionTitle }) => {
+  return (
+    <Box pt={1}>
+      {/* Información básica de la partitura */}
+      <Box mb={4}>
+        <Typography variant="h4" gutterBottom>
+          {sheet.instrument_name}
+        </Typography>
+        <Typography variant="h6" color="text.secondary" gutterBottom>
+          {versionTitle}
+        </Typography>
+        <Box display="flex" gap={1} mb={2}>
+          <Chip
+            label={sheet.type_display}
+            color="primary"
+          />
+          <Chip
+            label={sheet.clef_display}
+            color="secondary"
+          />
+          {sheet.tonalidad_relativa && (
+            <Chip
+              label={sheet.tonalidad_relativa}
+              color="info"
+            />
+          )}
+        </Box>
+      </Box>
+
+      {/* Información detallada */}
+      <Box display="flex" flexDirection="column" gap={3}>
+        <Card sx={{ p: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            Detalles del Instrumento
+          </Typography>
+          <Box display="flex" flexDirection="column" gap={2}>
+            <Box display="flex" justifyContent="space-between">
+              <Typography variant="body2" color="text.secondary">
+                Instrumento:
+              </Typography>
+              <Typography variant="body2">
+                {sheet.instrument_name}
+              </Typography>
+            </Box>
+            <Box display="flex" justifyContent="space-between">
+              <Typography variant="body2" color="text.secondary">
+                Tipo de partitura:
+              </Typography>
+              <Typography variant="body2">
+                {sheet.type_display}
+              </Typography>
+            </Box>
+            <Box display="flex" justifyContent="space-between">
+              <Typography variant="body2" color="text.secondary">
+                Clave:
+              </Typography>
+              <Typography variant="body2">
+                {sheet.clef_display}
+              </Typography>
+            </Box>
+            {sheet.tonalidad_relativa && (
+              <Box display="flex" justifyContent="space-between">
+                <Typography variant="body2" color="text.secondary">
+                  Tonalidad relativa:
+                </Typography>
+                <Typography variant="body2" color="primary.main">
+                  {sheet.tonalidad_relativa}
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        </Card>
+
+        {/* Archivo PDF */}
+        <Card sx={{ p: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            Archivo PDF
+          </Typography>
+          <Box display="flex" alignItems="center" gap={2}>
+            <Avatar sx={{ backgroundColor: 'error.main' }}>
+              <FileText size={20} />
+            </Avatar>
+            <Box flexGrow={1}>
+              <Typography variant="body2">
+                Partitura en PDF
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Archivo listo para descarga e impresión
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              startIcon={<Download size={16} />}
+              component="a"
+              href={sheet.file}
+              target="_blank"
+              color="primary"
+            >
+              Descargar
+            </Button>
+          </Box>
+        </Card>
+
+        {/* Información técnica */}
+        {sheet.created_at && (
+          <Card sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Información Técnica
+            </Typography>
+            <Box display="flex" flexDirection="column" gap={2}>
+              <Box display="flex" justifyContent="space-between">
+                <Typography variant="body2" color="text.secondary">
+                  ID de partitura:
+                </Typography>
+                <Typography variant="body2" fontFamily="monospace">
+                  #{sheet.id}
+                </Typography>
+              </Box>
+              {sheet.created_at && (
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2" color="text.secondary">
+                    Fecha de creación:
+                  </Typography>
+                  <Typography variant="body2">
+                    {new Date(sheet.created_at).toLocaleDateString()}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          </Card>
+        )}
+      </Box>
     </Box>
   );
 };

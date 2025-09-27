@@ -4,7 +4,23 @@ from django.urls import reverse
 from django.utils.safestring import mark_safe
 from .models import Location, Repertoire, RepertoireVersion, Event
 
-class RepertoireVersionInline(admin.TabularInline):
+
+class DarkModeModelAdmin(admin.ModelAdmin):
+    """Base admin class with dark mode styling"""
+    class Media:
+        css = {
+            'all': ('admin/css/dark_theme.css',)
+        }
+
+
+class DarkModeTabularInline(admin.TabularInline):
+    """Base inline class with dark mode styling"""
+    class Media:
+        css = {
+            'all': ('admin/css/dark_theme.css',)
+        }
+
+class RepertoireVersionInline(DarkModeTabularInline):
     model = RepertoireVersion
     extra = 1
     fields = ('version', 'order', 'notes')
@@ -12,7 +28,7 @@ class RepertoireVersionInline(admin.TabularInline):
     show_change_link = True
 
 @admin.register(Location)
-class LocationAdmin(admin.ModelAdmin):
+class LocationAdmin(DarkModeModelAdmin):
     list_display = ('name', 'city', 'capacity', 'contact_phone', 'is_active')
     list_filter = ('city', 'country')
     search_fields = ('name', 'address', 'city', 'contact_email')
@@ -43,7 +59,7 @@ class LocationAdmin(admin.ModelAdmin):
     is_active.short_description = 'Activo'
 
 @admin.register(Repertoire)
-class RepertoireAdmin(admin.ModelAdmin):
+class RepertoireAdmin(DarkModeModelAdmin):
     list_display = ('name', 'version_count', 'is_active', 'created_at')
     search_fields = ('name', 'description')
     list_filter = ('is_active', 'created_at')
@@ -64,7 +80,7 @@ class RepertoireAdmin(admin.ModelAdmin):
     version_count.short_description = 'N° Versiones'
 
 @admin.register(Event)
-class EventAdmin(admin.ModelAdmin):
+class EventAdmin(DarkModeModelAdmin):
     list_display = ('title', 'event_type', 'start_datetime', 'end_datetime', 'location_link', 'status', 'is_public')
     list_filter = ('event_type', 'status', 'is_public', 'start_datetime')
     search_fields = ('title', 'description', 'location__name')
@@ -106,7 +122,7 @@ class EventAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 @admin.register(RepertoireVersion)
-class RepertoireVersionAdmin(admin.ModelAdmin):
+class RepertoireVersionAdmin(DarkModeModelAdmin):
     list_display = ('__str__', 'repertoire', 'version', 'order')
     list_filter = ('repertoire',)
     search_fields = ('repertoire__name', 'version__title', 'notes')

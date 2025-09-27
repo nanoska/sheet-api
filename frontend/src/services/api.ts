@@ -19,12 +19,17 @@ class ApiService {
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+      console.log('Making request to:', config.url, 'with token:', !!token);
       return config;
     });
 
     this.api.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        console.log('Successful response from:', response.config.url, 'Status:', response.status);
+        return response;
+      },
       async (error) => {
+        console.log('Error response from:', error.config?.url, 'Status:', error.response?.status, 'Error:', error.message);
         const originalRequest = error.config;
         if (error.response?.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true;
@@ -83,6 +88,15 @@ class ApiService {
   async createLocation(locationData: Omit<Location, 'id' | 'created_at' | 'updated_at'>): Promise<Location> {
     const response = await this.api.post('/events/locations/', locationData);
     return response.data;
+  }
+
+  async updateLocation(id: number, locationData: Partial<Location>): Promise<Location> {
+    const response = await this.api.patch(`/events/locations/${id}/`, locationData);
+    return response.data;
+  }
+
+  async deleteLocation(id: number): Promise<void> {
+    await this.api.delete(`/events/locations/${id}/`);
   }
 
   // Repertoire methods
@@ -150,46 +164,73 @@ class ApiService {
   }
 
   async getThemes(): Promise<Theme[]> {
-    const response = await this.api.get('/api/themes/');
+    const response = await this.api.get('/themes/');
     return response.data.results || response.data;
   }
 
   async getTheme(id: number): Promise<Theme> {
-    const response = await this.api.get(`/api/themes/${id}/`);
+    const response = await this.api.get(`/themes/${id}/`);
     return response.data;
   }
 
   async createTheme(theme: Partial<Theme>): Promise<Theme> {
-    const response = await this.api.post('/api/themes/', theme);
+    const response = await this.api.post('/themes/', theme, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   }
 
   async updateTheme(id: number, theme: Partial<Theme>): Promise<Theme> {
-    const response = await this.api.put(`/api/themes/${id}/`, theme);
+    const response = await this.api.put(`/themes/${id}/`, theme, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   }
 
   async deleteTheme(id: number): Promise<void> {
-    await this.api.delete(`/api/themes/${id}/`);
+    await this.api.delete(`/themes/${id}/`);
   }
 
   async getInstruments(): Promise<Instrument[]> {
-    const response = await this.api.get('/api/instruments/');
+    const response = await this.api.get('/instruments/');
     return response.data.results || response.data;
   }
 
+  async getInstrument(id: number): Promise<Instrument> {
+    const response = await this.api.get(`/instruments/${id}/`);
+    return response.data;
+  }
+
+  async createInstrument(instrumentData: Omit<Instrument, 'id' | 'created_at' | 'updated_at'>): Promise<Instrument> {
+    const response = await this.api.post('/instruments/', instrumentData);
+    return response.data;
+  }
+
+  async updateInstrument(id: number, instrumentData: Partial<Instrument>): Promise<Instrument> {
+    const response = await this.api.patch(`/instruments/${id}/`, instrumentData);
+    return response.data;
+  }
+
+  async deleteInstrument(id: number): Promise<void> {
+    await this.api.delete(`/instruments/${id}/`);
+  }
+
   async getVersions(): Promise<Version[]> {
-    const response = await this.api.get('/api/versions/');
+    const response = await this.api.get('/versions/');
     return response.data.results || response.data;
   }
 
   async getVersion(id: number): Promise<Version> {
-    const response = await this.api.get(`/api/versions/${id}/`);
+    const response = await this.api.get(`/versions/${id}/`);
     return response.data;
   }
 
   async createVersion(versionData: FormData): Promise<Version> {
-    const response = await this.api.post('/api/versions/', versionData, {
+    const response = await this.api.post('/versions/', versionData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -198,7 +239,7 @@ class ApiService {
   }
 
   async updateVersion(id: number, versionData: FormData): Promise<Version> {
-    const response = await this.api.put(`/api/versions/${id}/`, versionData, {
+    const response = await this.api.put(`/versions/${id}/`, versionData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -207,12 +248,34 @@ class ApiService {
   }
 
   async deleteVersion(id: number): Promise<void> {
-    await this.api.delete(`/api/versions/${id}/`);
+    await this.api.delete(`/versions/${id}/`);
   }
 
   async getSheetMusic(): Promise<SheetMusic[]> {
-    const response = await this.api.get('/api/sheet-music/');
+    const response = await this.api.get('/sheet-music/');
     return response.data.results || response.data;
+  }
+
+  async createSheetMusic(sheetMusicData: FormData): Promise<SheetMusic> {
+    const response = await this.api.post('/sheet-music/', sheetMusicData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  }
+
+  async updateSheetMusic(id: number, sheetMusicData: any): Promise<SheetMusic> {
+    const response = await this.api.patch(`/sheet-music/${id}/`, sheetMusicData, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.data;
+  }
+
+  async deleteSheetMusic(id: number): Promise<void> {
+    await this.api.delete(`/sheet-music/${id}/`);
   }
 
   async uploadFile(file: File, endpoint: string): Promise<any> {
