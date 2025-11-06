@@ -11,6 +11,7 @@ router.register(r'themes', views.ThemeViewSet)
 router.register(r'instruments', views.InstrumentViewSet)
 router.register(r'versions', views.VersionViewSet)
 router.register(r'sheet-music', views.SheetMusicViewSet)
+router.register(r'version-files', views.VersionFileViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),

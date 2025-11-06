@@ -1,13 +1,15 @@
-from rest_framework import viewsets, filters
+from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from django.shortcuts import get_object_or_404
 
-from .models import Theme, Instrument, Version, SheetMusic
+from .models import Theme, Instrument, Version, SheetMusic, VersionFile
 from .serializers import (
     ThemeSerializer, InstrumentSerializer,
     VersionSerializer, VersionDetailSerializer,
-    SheetMusicSerializer, SheetMusicDetailSerializer
+    SheetMusicSerializer, SheetMusicDetailSerializer,
+    VersionFileSerializer, VersionFileDetailSerializer
 )
 from .utils import calculate_relative_tonality, get_clef_for_instrument
 
@@ -116,3 +118,124 @@ class SheetMusicViewSet(viewsets.ModelViewSet):
         if self.action == 'retrieve':
             return SheetMusicDetailSerializer
         return SheetMusicSerializer
+
+
+class VersionFileViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for VersionFile model.
+
+    Handles CRUD operations for version files with support for:
+    - DUETO: files organized by transposition
+    - ENSAMBLE: files organized by instrument
+    - STANDARD: general version files
+    """
+    queryset = VersionFile.objects.select_related('version', 'instrument', 'version__theme').all()
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['version__title', 'version__theme__title', 'instrument__name', 'description']
+    filterset_fields = ['version', 'file_type', 'tuning', 'instrument', 'version__type']
+    ordering_fields = ['created_at', 'updated_at', 'file_type']
+    ordering = ['-created_at']
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return VersionFileDetailSerializer
+        return VersionFileSerializer
+
+    @action(detail=False, methods=['get'])
+    def download_for_instrument(self, request):
+        """
+        Get the appropriate file for a specific instrument.
+
+        Query params:
+        - version_id: ID of the Version
+        - instrument_id: ID of the Instrument
+
+        Returns the VersionFile that matches the instrument's tuning and clef.
+        """
+        version_id = request.query_params.get('version_id')
+        instrument_id = request.query_params.get('instrument_id')
+
+        if not version_id or not instrument_id:
+            return Response(
+                {'error': 'Both version_id and instrument_id are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        version = get_object_or_404(Version, id=version_id)
+        instrument = get_object_or_404(Instrument, id=instrument_id)
+
+        # Get the appropriate file based on version type
+        version_file = None
+
+        if version.type == 'DUETO':
+            # For DUETO, find file by tuning mapping
+            tuning_map = {
+                'Bb': 'Bb',
+                'Eb': 'Eb',
+                'F': 'F',
+                'C': 'C',
+                'G': 'C',
+                'D': 'C',
+                'A': 'C',
+                'E': 'C',
+                'NONE': 'C'
+            }
+
+            target_tuning = tuning_map.get(instrument.afinacion, 'C')
+
+            # Check if instrument uses bass clef
+            from .utils import get_clef_for_instrument
+            clef = get_clef_for_instrument(instrument.name, instrument.family)
+
+            if clef == 'FA':
+                target_tuning = 'C_BASS'
+
+            version_file = VersionFile.objects.filter(
+                version=version,
+                file_type='DUETO_TRANSPOSITION',
+                tuning=target_tuning
+            ).first()
+
+        elif version.type == 'ENSAMBLE':
+            # For ENSAMBLE, find file by specific instrument
+            version_file = VersionFile.objects.filter(
+                version=version,
+                file_type='ENSAMBLE_INSTRUMENT',
+                instrument=instrument
+            ).first()
+
+        elif version.type in ['STANDARD', 'GRUPO_REDUCIDO']:
+            # For STANDARD, return any STANDARD_SCORE file
+            version_file = VersionFile.objects.filter(
+                version=version,
+                file_type='STANDARD_SCORE'
+            ).first()
+
+        if not version_file:
+            return Response(
+                {'error': 'No file found for this instrument and version combination'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = self.get_serializer(version_file)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def by_version(self, request):
+        """
+        Get all files for a specific version.
+
+        Query param:
+        - version_id: ID of the Version
+        """
+        version_id = request.query_params.get('version_id')
+
+        if not version_id:
+            return Response(
+                {'error': 'version_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        version_files = self.get_queryset().filter(version_id=version_id)
+        serializer = self.get_serializer(version_files, many=True)
+        return Response(serializer.data)

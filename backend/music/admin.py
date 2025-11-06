@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.admin import AdminSite
-from .models import Theme, Instrument, Version, SheetMusic
+from .models import Theme, Instrument, Version, SheetMusic, VersionFile
 
 
 class SheetMusicAdminSite(AdminSite):
@@ -82,6 +82,47 @@ class SheetMusicAdmin(DarkModeModelAdmin):
     search_fields = ['version__title', 'version__theme__title', 'instrument__name']
     readonly_fields = ['created_at', 'updated_at', 'tonalidad_relativa']
     autocomplete_fields = ['version', 'instrument']
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('version', 'instrument', 'version__theme')
+
+
+@admin.register(VersionFile)
+class VersionFileAdmin(DarkModeModelAdmin):
+    list_display = ['version', 'file_type', 'tuning', 'instrument', 'created_at', 'has_audio']
+    list_filter = ['file_type', 'tuning', 'version__type', 'created_at']
+    search_fields = ['version__title', 'version__theme__title', 'instrument__name', 'description']
+    readonly_fields = ['created_at', 'updated_at']
+    autocomplete_fields = ['version', 'instrument']
+
+    fieldsets = (
+        ('Version', {
+            'fields': ('version', 'file_type')
+        }),
+        ('Dueto - Transposición', {
+            'fields': ('tuning',),
+            'description': 'Solo para tipo DUETO_TRANSPOSITION'
+        }),
+        ('Ensamble - Instrumento', {
+            'fields': ('instrument',),
+            'description': 'Solo para tipo ENSAMBLE_INSTRUMENT'
+        }),
+        ('Archivos', {
+            'fields': ('file', 'audio')
+        }),
+        ('Información Adicional', {
+            'fields': ('description',)
+        }),
+        ('Metadatos', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def has_audio(self, obj):
+        return bool(obj.audio)
+    has_audio.boolean = True
+    has_audio.short_description = 'Audio'
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('version', 'instrument', 'version__theme')

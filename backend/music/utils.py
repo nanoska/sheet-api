@@ -99,6 +99,16 @@ def sheet_music_upload_path(instance, filename):
     return get_theme_based_filename(instance, filename, 'sheet')
 
 
+def version_file_upload_path(instance, filename):
+    """Return the upload path for version file PDFs"""
+    return get_theme_based_filename(instance, filename, 'version_file')
+
+
+def version_file_audio_upload_path(instance, filename):
+    """Return the upload path for version file audio"""
+    return get_theme_based_filename(instance, filename, 'version_audio')
+
+
 
 
 def calculate_relative_tonality(theme_tonality, instrument_tuning):
@@ -195,6 +205,71 @@ def get_clef_for_instrument(instrument_name, instrument_family):
 
     # Default to treble clef for most wind instruments
     return 'SOL'
+
+
+def get_file_for_instrument(version, instrument):
+    """
+    Get the appropriate VersionFile for a given version and instrument.
+
+    Args:
+        version: Version instance
+        instrument: Instrument instance
+
+    Returns:
+        VersionFile instance or None if not found
+
+    Logic:
+        - For DUETO versions: Match by tuning (Bb, Eb, F, C, C_BASS based on instrument)
+        - For ENSAMBLE versions: Match by specific instrument
+        - For STANDARD/GRUPO_REDUCIDO versions: Return any STANDARD_SCORE file
+    """
+    # Import here to avoid circular imports
+    from .models import VersionFile
+
+    if version.type == 'DUETO':
+        # Map instrument tuning to VersionFile tuning choices
+        tuning_map = {
+            'Bb': 'Bb',
+            'Eb': 'Eb',
+            'F': 'F',
+            'C': 'C',
+            'G': 'C',
+            'D': 'C',
+            'A': 'C',
+            'E': 'C',
+            'NONE': 'C'
+        }
+
+        target_tuning = tuning_map.get(instrument.afinacion, 'C')
+
+        # Check if instrument uses bass clef
+        clef = get_clef_for_instrument(instrument.name, instrument.family)
+
+        if clef == 'FA':
+            target_tuning = 'C_BASS'
+
+        return VersionFile.objects.filter(
+            version=version,
+            file_type='DUETO_TRANSPOSITION',
+            tuning=target_tuning
+        ).first()
+
+    elif version.type == 'ENSAMBLE':
+        # For ENSAMBLE, find file by specific instrument
+        return VersionFile.objects.filter(
+            version=version,
+            file_type='ENSAMBLE_INSTRUMENT',
+            instrument=instrument
+        ).first()
+
+    elif version.type in ['STANDARD', 'GRUPO_REDUCIDO']:
+        # For STANDARD, return any STANDARD_SCORE file
+        return VersionFile.objects.filter(
+            version=version,
+            file_type='STANDARD_SCORE'
+        ).first()
+
+    return None
 
 
 if __name__ == "__main__":
