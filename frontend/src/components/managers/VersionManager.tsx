@@ -53,6 +53,7 @@ const VersionManager: React.FC = () => {
   const [themes, setThemes] = useState<Theme[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingVersion, setEditingVersion] = useState<Version | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -181,10 +182,12 @@ const VersionManager: React.FC = () => {
     setSheetMusicDialogOpen(true);
   };
 
-  const filteredVersions = versions.filter(version =>
-    version.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (version as any).theme_title?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredVersions = versions.filter(version => {
+    const matchesSearch = version.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (version as any).theme_title?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = !typeFilter || version.type === typeFilter;
+    return matchesSearch && matchesType;
+  });
 
   if (loading) {
     return (
@@ -209,6 +212,21 @@ const VersionManager: React.FC = () => {
           }}
           sx={{ flexGrow: 1 }}
         />
+        <TextField
+          select
+          size="small"
+          label="Tipo de Versión"
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          sx={{ minWidth: 180 }}
+        >
+          <MenuItem value="">Todos</MenuItem>
+          {VERSION_TYPES.map((option) => (
+            <MenuItem key={option.value} value={option.value}>
+              {option.label}
+            </MenuItem>
+          ))}
+        </TextField>
         <Button
           variant="contained"
           startIcon={<Plus size={16} />}

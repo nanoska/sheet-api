@@ -161,7 +161,7 @@ Located in `music/utils.py`:
 - `src/components/Login.tsx` - Updated login with dark theme styling
 - `src/components/managers/` - Manager components for each entity type:
   - `ThemeManager.tsx` - Theme CRUD with image/audio uploads
-  - `VersionManager.tsx` - Version management with file handling
+  - `VersionManager.tsx` - Version management with file handling and type filter (Standard, Dueto, Ensamble, Grupo Reducido)
   - `SheetMusicManager.tsx` - PDF sheet music upload and management
   - `EventManager.tsx` - Event scheduling and management
   - `LocationManager.tsx` - Venue management
@@ -192,6 +192,7 @@ The frontend has been completely redesigned with a focus on simplicity and moder
 ### User Experience Enhancements
 - **Intuitive Navigation**: Tab-based navigation keeps all functionality accessible
 - **Search & Filter**: Global search functionality in each manager component
+- **Version Type Filter**: Dropdown filter in VersionManager to filter by type (Standard, Dueto, Ensamble, Grupo Reducido)
 - **Modal Forms**: Centralized create/edit forms with validation and error handling
 - **Visual Feedback**: Loading states, success indicators, and clear error messages
 - **Accessibility**: ARIA labels, keyboard navigation, and screen reader support
