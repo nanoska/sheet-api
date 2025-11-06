@@ -360,7 +360,7 @@ const VersionFileManager: React.FC = () => {
               variant="outlined"
               startIcon={<Download size={16} />}
               component="a"
-              href={versionFile.file}
+              href={typeof versionFile.file === 'string' ? versionFile.file : '#'}
               target="_blank"
               sx={{ color: '#00d4aa', borderColor: '#00d4aa', '&:hover': { borderColor: '#00d4aa', bgcolor: '#00d4aa22' } }}
             >
