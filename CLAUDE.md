@@ -197,6 +197,130 @@ The frontend has been completely redesigned with a focus on simplicity and moder
 - **Visual Feedback**: Loading states, success indicators, and clear error messages
 - **Accessibility**: ARIA labels, keyboard navigation, and screen reader support
 
+## Dynamic Sheet Music Input System (2025)
+
+### Overview
+
+The VersionManager now implements a sophisticated dynamic input system that varies sheet music upload workflows based on the Version type. This allows for specialized handling of different musical arrangements:
+
+### Version Types and Input Logic
+
+#### **STANDARD** (Uses SheetMusic model)
+- **Purpose**: Traditional orchestral/band arrangements with individual instrument parts
+- **Model**: `SheetMusic` (backend/music/models.py:112)
+- **Fields**: Instrument, Type (Melodía Principal/Secundaria/Armonía/Bajo), Clef (Sol/Fa), PDF file
+- **UI Component**: `StandardSheetForm` (frontend/src/components/managers/VersionManager.tsx:529)
+- **Workflow**: Select instrument → Choose part type and clef → Upload PDF
+- **Unique Constraint**: version + instrument + type
+
+#### **DUETO** (Uses VersionFile model)
+- **Purpose**: Duet arrangements with transposition-based file organization
+- **Model**: `VersionFile` with `file_type='DUETO_TRANSPOSITION'`
+- **Fields**: Transposition (Bb, Eb, F, C, C_BASS), PDF file, optional audio, description
+- **UI Component**: `DuetoForm` (frontend/src/components/managers/VersionManager.tsx:750)
+- **Workflow**: Select transposition → Upload PDF (one per transposition) → Optional audio
+- **Unique Constraint**: version + tuning
+- **Typical uploads**: 4-5 files (one per common transposition)
+
+#### **GRUPO_REDUCIDO** (Uses VersionFile model)
+- **Purpose**: Small ensemble arrangements (2-5 instruments)
+- **Model**: `VersionFile` with `file_type='STANDARD_SCORE'`
+- **Fields**: Instrument, PDF file, optional audio, description
+- **UI Component**: `MultiInstrumentForm` with `versionType='GRUPO_REDUCIDO'`
+- **Workflow**: Select instrument → Upload PDF → Repeat for each instrument (2-5)
+- **Unique Constraint**: version + instrument
+- **Validation**: Minimum 2 instruments, maximum 5 instruments
+- **UI Feedback**: Progress counter shows "X/5 instrumentos"
+
+#### **ENSAMBLE** (Uses VersionFile model)
+- **Purpose**: Large ensemble arrangements (6+ instruments)
+- **Model**: `VersionFile` with `file_type='ENSAMBLE_INSTRUMENT'`
+- **Fields**: Instrument, PDF file, optional audio, description
+- **UI Component**: `MultiInstrumentForm` with `versionType='ENSAMBLE'`
+- **Workflow**: Select instrument → Upload PDF → Repeat for each instrument (6+)
+- **Unique Constraint**: version + instrument
+- **Validation**: Minimum 6 instruments, no maximum
+- **UI Feedback**: Progress counter shows "X instrumentos"
+
+### Technical Implementation
+
+#### Configuration Dictionary
+Location: `frontend/src/components/managers/VersionManager.tsx:42`
+
+```typescript
+const VERSION_TYPE_CONFIG = {
+  STANDARD: {
+    model: 'SheetMusic',
+    types: ['MELODIA_PRINCIPAL', 'MELODIA_SECUNDARIA', 'ARMONIA', 'BAJO'],
+    clefs: ['SOL', 'FA']
+  },
+  DUETO: {
+    model: 'VersionFile',
+    fileType: 'DUETO_TRANSPOSITION',
+    tunings: ['Bb', 'Eb', 'F', 'C', 'C_BASS']
+  },
+  GRUPO_REDUCIDO: {
+    model: 'VersionFile',
+    fileType: 'STANDARD_SCORE',
+    minInstruments: 2,
+    maxInstruments: 5
+  },
+  ENSAMBLE: {
+    model: 'VersionFile',
+    fileType: 'ENSAMBLE_INSTRUMENT',
+    minInstruments: 6
+  }
+}
+```
+
+#### Component Architecture
+
+**Main Router Component**: `SheetMusicForVersion` (line 488)
+- Loads version data
+- Uses switch statement to route to appropriate form component based on `version.type`
+
+**Form Components**:
+1. `StandardSheetForm` - Original SheetMusic functionality preserved
+2. `DuetoForm` - New transposition-based upload interface
+3. `MultiInstrumentForm` - Shared component for GRUPO_REDUCIDO and ENSAMBLE
+
+#### API Integration
+
+**Existing API Methods** (frontend/src/services/api.ts:281-329):
+- `getVersionFiles(params)` - Retrieve version files with filtering
+- `createVersionFile(formData)` - Upload new version file
+- `deleteVersionFile(id)` - Remove version file
+
+**Backend Validation** (backend/music/models.py:235):
+- Model-level validation ensures file_type matches version.type
+- Unique constraints prevent duplicate uploads
+- Clean() method provides detailed validation errors
+
+### User Experience Flow
+
+1. **User creates a Version** and selects type (Standard/Dueto/Grupo Reducido/Ensamble)
+2. **User clicks "View Sheets"** icon on version card
+3. **Dialog opens** with appropriate form based on version type
+4. **User uploads files** following the specific workflow for that type
+5. **System validates** instrument count, file types, and constraints
+6. **Files are displayed** in a grid with download/delete options
+
+### Benefits
+
+- **Type-Specific Workflows**: Each arrangement type has optimized input process
+- **Validation**: Built-in min/max constraints prevent invalid configurations
+- **Flexibility**: Easy to add new version types by extending the config dictionary
+- **Consistency**: All forms use same Material-UI components and styling
+- **Error Handling**: Clear validation messages and error feedback
+- **Audio Support**: Optional audio files for reference tracks
+
+### Future Enhancements
+
+- Bulk upload for multi-instrument forms
+- Auto-suggestion of missing transpositions/instruments
+- Preview functionality for uploaded PDFs
+- Batch download of all files for a version
+
 ## Development Workflow
 
 ### Common Development Tasks
