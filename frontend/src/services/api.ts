@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
-import { Theme, Instrument, Version, SheetMusic, AuthResponse, LoginCredentials, Event, Location, Repertoire } from '../types/api';
+import { Theme, Instrument, Version, SheetMusic, VersionFile, VersionFileCreate, AuthResponse, LoginCredentials, Event, Location, Repertoire } from '../types/api';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
 
@@ -276,6 +276,56 @@ class ApiService {
 
   async deleteSheetMusic(id: number): Promise<void> {
     await this.api.delete(`/sheet-music/${id}/`);
+  }
+
+  // VersionFile methods
+  async getVersionFiles(params?: any): Promise<VersionFile[]> {
+    const response = await this.api.get('/version-files/', { params });
+    return response.data.results || response.data;
+  }
+
+  async getVersionFile(id: number): Promise<VersionFile> {
+    const response = await this.api.get(`/version-files/${id}/`);
+    return response.data;
+  }
+
+  async getVersionFilesByVersion(versionId: number): Promise<VersionFile[]> {
+    const response = await this.api.get('/version-files/by_version/', {
+      params: { version_id: versionId }
+    });
+    return response.data;
+  }
+
+  async getVersionFileForInstrument(versionId: number, instrumentId: number): Promise<VersionFile> {
+    const response = await this.api.get('/version-files/download_for_instrument/', {
+      params: {
+        version_id: versionId,
+        instrument_id: instrumentId
+      }
+    });
+    return response.data;
+  }
+
+  async createVersionFile(versionFileData: FormData): Promise<VersionFile> {
+    const response = await this.api.post('/version-files/', versionFileData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  }
+
+  async updateVersionFile(id: number, versionFileData: FormData): Promise<VersionFile> {
+    const response = await this.api.patch(`/version-files/${id}/`, versionFileData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  }
+
+  async deleteVersionFile(id: number): Promise<void> {
+    await this.api.delete(`/version-files/${id}/`);
   }
 
   async uploadFile(file: File, endpoint: string): Promise<any> {

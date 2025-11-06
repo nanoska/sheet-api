@@ -48,6 +48,36 @@ export interface SheetMusic {
   updated_at: string;
 }
 
+export interface VersionFile {
+  id: number;
+  version: number;
+  version_title?: string;
+  theme_title?: string;
+  version_type?: 'STANDARD' | 'ENSAMBLE' | 'DUETO' | 'GRUPO_REDUCIDO';
+  file_type: 'DUETO_TRANSPOSITION' | 'ENSAMBLE_INSTRUMENT' | 'STANDARD_SCORE';
+  file_type_display?: string;
+  tuning?: 'Bb' | 'Eb' | 'F' | 'C' | 'C_BASS';
+  tuning_display?: string;
+  instrument?: number;
+  instrument_name?: string;
+  file: string | File;
+  audio?: string | File;
+  has_audio?: boolean;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VersionFileCreate {
+  version: number;
+  file_type: 'DUETO_TRANSPOSITION' | 'ENSAMBLE_INSTRUMENT' | 'STANDARD_SCORE';
+  tuning?: 'Bb' | 'Eb' | 'F' | 'C' | 'C_BASS';
+  instrument?: number;
+  file: File;
+  audio?: File;
+  description?: string;
+}
+
 export interface User {
   id: number;
   username: string;

@@ -14,10 +14,12 @@ import {
   MapPin,
   List,
   Upload,
+  FolderOpen,
 } from 'lucide-react';
 import Layout from '../components/common/Layout';
 import ThemeManager from '../components/managers/ThemeManager';
 import VersionManager from '../components/managers/VersionManager';
+import VersionFileManager from '../components/managers/VersionFileManager';
 import SheetMusicManager from '../components/managers/SheetMusicManager';
 import EventManager from '../components/managers/EventManager';
 import LocationManager from '../components/managers/LocationManager';
@@ -59,6 +61,7 @@ const Dashboard: React.FC = () => {
   const tabs = [
     { label: 'Themes', icon: <Music size={20} />, component: <ThemeManager /> },
     { label: 'Versions', icon: <FileText size={20} />, component: <VersionManager /> },
+    { label: 'Version Files', icon: <FolderOpen size={20} />, component: <VersionFileManager /> },
     { label: 'Sheet Music', icon: <Upload size={20} />, component: <SheetMusicManager /> },
     { label: 'Events', icon: <Calendar size={20} />, component: <EventManager /> },
     { label: 'Locations', icon: <MapPin size={20} />, component: <LocationManager /> },
