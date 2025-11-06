@@ -4,17 +4,13 @@ FROM node:22-alpine
 # Establecer el directorio de trabajo
 WORKDIR /app
 
-# Copiar los archivos de dependencias
-COPY package*.json ./
-
-# Instalar dependencias
-RUN npm install
-
-# Copiar el resto de la aplicación
-COPY . .
+# Instalar herramientas necesarias
+RUN apk add --no-cache git
 
 # Exponer el puerto 3000
 EXPOSE 3000
 
-# Comando para iniciar el servidor de desarrollo
+# El comando se ejecutará desde docker-compose.dev.yml
+# Esto permite que npm install se ejecute cuando el contenedor inicia
+# con acceso al volumen persistente de node_modules
 CMD ["npm", "start"]

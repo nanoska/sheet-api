@@ -14,16 +14,26 @@ Este proyecto incluye configuración Docker optimizada para desarrollo con hot-r
 
 ### Comandos para Desarrollo
 
-#### 1. Iniciar los servicios en modo desarrollo
+#### 1. Primera vez: Limpiar volúmenes anteriores (si hubo error)
+
+Si tuviste un error de build previo, limpia los volúmenes:
+```bash
+docker compose -f docker-compose.dev.yml down -v
+```
+
+#### 2. Iniciar los servicios en modo desarrollo
 
 ```bash
 docker compose -f docker-compose.dev.yml up --build
 ```
 
+**Nota**: La primera vez puede tardar unos minutos porque el frontend instalará las dependencias de npm dentro del contenedor. Verás logs de `npm install` en la consola.
+
 Este comando:
 - Levanta PostgreSQL en puerto 5432
 - Levanta Django en puerto 8000 con `runserver` (hot-reload automático)
 - Levanta React en puerto 3000 con `npm start` (hot-reload automático)
+- Las dependencias de npm se instalan automáticamente en un volumen persistente
 
 #### 2. Ver logs en tiempo real
 
