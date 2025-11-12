@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'drf_yasg',
     'music',
     'events',
+    'music_learning',
 ]
 
 MIDDLEWARE = [
@@ -228,4 +229,11 @@ STORAGES = {
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
+}
+
+# Music Learning App Configuration
+MUSIC_LEARNING_SETTINGS = {
+    'ALLOW_ANONYMOUS': True,  # Permitir modo demo sin autenticación
+    'XP_PER_LEVEL': 100,
+    'STREAK_REQUIRED_HOURS': 24,
 }

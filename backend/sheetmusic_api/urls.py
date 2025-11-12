@@ -49,6 +49,7 @@ urlpatterns = [
     path('api/v1/', include([
         path('', include('music.urls')),
         path('events/', include('events.urls')),
+        path('', include('music_learning.urls')),
     ])),
 ]
 
