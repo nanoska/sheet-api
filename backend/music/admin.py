@@ -1,29 +1,9 @@
 from django.contrib import admin
-from django.contrib.admin import AdminSite
 from .models import Theme, Instrument, Version, SheetMusic, VersionFile
 
 
-class SheetMusicAdminSite(AdminSite):
-    site_header = "Sheet Music Admin - Dark Mode"
-    site_title = "Sheet Music Admin"
-    index_title = "Welcome to Sheet Music Administration"
-
-    class Media:
-        css = {
-            'all': ('admin/css/dark_theme.css',)
-        }
-
-
-class DarkModeModelAdmin(admin.ModelAdmin):
-    """Base admin class with dark mode styling"""
-    class Media:
-        css = {
-            'all': ('admin/css/dark_theme.css',)
-        }
-
-
 @admin.register(Theme)
-class ThemeAdmin(DarkModeModelAdmin):
+class ThemeAdmin(admin.ModelAdmin):
     list_display = ['title', 'artist', 'tonalidad', 'created_at', 'versions_count']
     list_filter = ['tonalidad', 'artist', 'created_at']
     search_fields = ['title', 'artist', 'description']
@@ -48,7 +28,7 @@ class ThemeAdmin(DarkModeModelAdmin):
 
 
 @admin.register(Instrument)
-class InstrumentAdmin(DarkModeModelAdmin):
+class InstrumentAdmin(admin.ModelAdmin):
     list_display = ['name', 'family', 'afinacion', 'created_at', 'sheet_music_count']
     list_filter = ['family', 'afinacion']
     search_fields = ['name']
@@ -60,7 +40,7 @@ class InstrumentAdmin(DarkModeModelAdmin):
 
 
 @admin.register(Version)
-class VersionAdmin(DarkModeModelAdmin):
+class VersionAdmin(admin.ModelAdmin):
     list_display = ['title', 'theme', 'type', 'created_at', 'sheet_music_count']
     list_filter = ['theme', 'type', 'created_at']
     search_fields = ['title', 'theme__title', 'notes']
@@ -76,7 +56,7 @@ class VersionAdmin(DarkModeModelAdmin):
 
 
 @admin.register(SheetMusic)
-class SheetMusicAdmin(DarkModeModelAdmin):
+class SheetMusicAdmin(admin.ModelAdmin):
     list_display = ['version', 'instrument', 'type', 'clef', 'tonalidad_relativa', 'created_at']
     list_filter = ['instrument', 'version__theme', 'type', 'clef', 'created_at']
     search_fields = ['version__title', 'version__theme__title', 'instrument__name']
@@ -88,7 +68,7 @@ class SheetMusicAdmin(DarkModeModelAdmin):
 
 
 @admin.register(VersionFile)
-class VersionFileAdmin(DarkModeModelAdmin):
+class VersionFileAdmin(admin.ModelAdmin):
     list_display = ['version', 'file_type', 'tuning', 'instrument', 'created_at', 'has_audio']
     list_filter = ['file_type', 'tuning', 'version__type', 'created_at']
     search_fields = ['version__title', 'version__theme__title', 'instrument__name', 'description']
