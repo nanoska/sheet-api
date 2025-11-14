@@ -17,6 +17,7 @@ import {
   ListItem,
   ListItemText,
   MenuItem,
+  Checkbox,
 } from '@mui/material';
 import { useDropzone } from 'react-dropzone';
 import {
@@ -54,6 +55,9 @@ const RepertoireManager: React.FC = () => {
   const [selectedRepertoire, setSelectedRepertoire] = useState<Repertoire | null>(null);
   const [sheetMusicDialogOpen, setSheetMusicDialogOpen] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<Version | null>(null);
+
+  // Estados para agregar versiones al repertorio
+  const [addVersionsDialogOpen, setAddVersionsDialogOpen] = useState(false);
 
   // Estados para edición de versiones
   const [versionEditDialogOpen, setVersionEditDialogOpen] = useState(false);
@@ -369,10 +373,24 @@ const RepertoireManager: React.FC = () => {
         fullWidth
       >
         <DialogTitle>
-          Versiones en "{selectedRepertoire?.name}"
-          <Typography variant="body2" color="text.secondary">
-            Gestiona las partituras de cada versión
-          </Typography>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Box>
+              <Typography variant="h6">
+                Versiones en "{selectedRepertoire?.name}"
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Gestiona las partituras de cada versión
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              startIcon={<Plus size={16} />}
+              onClick={() => setAddVersionsDialogOpen(true)}
+              color="primary"
+            >
+              Agregar Versiones
+            </Button>
+          </Box>
         </DialogTitle>
         <DialogContent>
           {selectedRepertoire && (
@@ -380,6 +398,29 @@ const RepertoireManager: React.FC = () => {
               repertoire={selectedRepertoire}
               onViewSheetMusic={handleViewSheetMusic}
               onEditVersion={handleEditVersion}
+              onRefresh={loadData}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para agregar versiones al repertorio */}
+      <Dialog
+        open={addVersionsDialogOpen}
+        onClose={() => setAddVersionsDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Agregar Versiones al Repertorio</DialogTitle>
+        <DialogContent>
+          {selectedRepertoire && (
+            <AddVersionsToRepertoire
+              repertoire={selectedRepertoire}
+              allVersions={versions}
+              onClose={() => {
+                setAddVersionsDialogOpen(false);
+                loadData();
+              }}
             />
           )}
         </DialogContent>
@@ -571,7 +612,8 @@ const VersionsGrid: React.FC<{
   repertoire: Repertoire;
   onViewSheetMusic: (version: Version) => void;
   onEditVersion: (version: Version) => void;
-}> = ({ repertoire, onViewSheetMusic, onEditVersion }) => {
+  onRefresh?: () => void;
+}> = ({ repertoire, onViewSheetMusic, onEditVersion, onRefresh }) => {
   const [sheetMusicCounts, setSheetMusicCounts] = useState<Record<number, number>>({});
 
   // Estados para dialog de información de versión
@@ -607,12 +649,26 @@ const VersionsGrid: React.FC<{
   if (!repertoire.versions || repertoire.versions.length === 0) {
     return (
       <Box textAlign="center" py={4}>
-        <Typography variant="h6" color="text.secondary">
+        <Typography variant="h6" color="text.secondary" mb={2}>
           No hay versiones en este repertorio
         </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Agrega versiones desde el gestor de versiones
+        <Typography variant="body2" color="text.secondary" mb={3}>
+          Agrega versiones de temas musicales a este repertorio
         </Typography>
+        <Button
+          variant="contained"
+          startIcon={<Plus size={16} />}
+          onClick={() => {
+            // Necesitamos llamar a una función parent para abrir el dialog
+            if (onRefresh) {
+              // Usamos un evento personalizado para abrir el dialog
+              window.dispatchEvent(new CustomEvent('openAddVersionsDialog'));
+            }
+          }}
+          color="primary"
+        >
+          Agregar Versiones
+        </Button>
       </Box>
     );
   }
@@ -1483,6 +1539,261 @@ const SheetMusicInfoContentRepertoire: React.FC<{
             </Box>
           </Card>
         )}
+      </Box>
+    </Box>
+  );
+};
+
+// Componente para agregar versiones a un repertorio
+const AddVersionsToRepertoire: React.FC<{
+  repertoire: Repertoire;
+  allVersions: Version[];
+  onClose: () => void;
+}> = ({ repertoire, allVersions, onClose }) => {
+  const [selectedVersionIds, setSelectedVersionIds] = useState<number[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>('ALL');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const VERSION_TYPES = [
+    { value: 'ALL', label: 'Todos los tipos' },
+    { value: 'STANDARD', label: 'Standard' },
+    { value: 'ENSAMBLE', label: 'Ensamble' },
+    { value: 'DUETO', label: 'Dueto' },
+    { value: 'GRUPO_REDUCIDO', label: 'Grupo Reducido' },
+  ];
+
+  // IDs de versiones ya en el repertorio
+  const existingVersionIds = repertoire.versions?.map(rv => rv.version.id) || [];
+
+  // Filtrar versiones disponibles
+  const filteredVersions = allVersions.filter(version => {
+    const matchesSearch =
+      (version.theme_title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ((version as any).artist || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      version.title.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesType = typeFilter === 'ALL' || version.type === typeFilter;
+
+    return matchesSearch && matchesType;
+  });
+
+  // Separar versiones en disponibles y ya agregadas
+  const availableVersions = filteredVersions.filter(v => !existingVersionIds.includes(v.id));
+  const alreadyAddedVersions = filteredVersions.filter(v => existingVersionIds.includes(v.id));
+
+  const handleToggleVersion = (versionId: number) => {
+    setSelectedVersionIds(prev =>
+      prev.includes(versionId)
+        ? prev.filter(id => id !== versionId)
+        : [...prev, versionId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedVersionIds.length === availableVersions.length) {
+      setSelectedVersionIds([]);
+    } else {
+      setSelectedVersionIds(availableVersions.map(v => v.id));
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (selectedVersionIds.length === 0) return;
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/v1/repertoires/${repertoire.id}/add_versions/`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            version_ids: selectedVersionIds,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Error al agregar versiones');
+      }
+
+      const data = await response.json();
+
+      if (data.errors && data.errors.length > 0) {
+        setError(data.errors.join(', '));
+      } else {
+        onClose();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al agregar versiones');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Box pt={1}>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+      {/* Búsqueda y filtros */}
+      <Box display="flex" gap={2} mb={3}>
+        <TextField
+          size="small"
+          placeholder="Buscar por tema, artista..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          InputProps={{
+            startAdornment: <Search size={16} style={{ marginRight: 8 }} />,
+          }}
+          sx={{ flexGrow: 1 }}
+        />
+        <TextField
+          select
+          size="small"
+          label="Tipo"
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          sx={{ minWidth: 200 }}
+        >
+          {VERSION_TYPES.map((option) => (
+            <MenuItem key={option.value} value={option.value}>
+              {option.label}
+            </MenuItem>
+          ))}
+        </TextField>
+      </Box>
+
+      {/* Seleccionar todas */}
+      {availableVersions.length > 0 && (
+        <Box display="flex" alignItems="center" gap={1} mb={2}>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={handleSelectAll}
+          >
+            {selectedVersionIds.length === availableVersions.length ? 'Deseleccionar' : 'Seleccionar'} todas ({availableVersions.length})
+          </Button>
+          <Typography variant="body2" color="text.secondary">
+            {selectedVersionIds.length} seleccionadas
+          </Typography>
+        </Box>
+      )}
+
+      {/* Lista de versiones disponibles */}
+      <Box sx={{ maxHeight: '400px', overflowY: 'auto', mb: 2 }}>
+        {availableVersions.length === 0 && alreadyAddedVersions.length === 0 && (
+          <Typography variant="body2" color="text.secondary" textAlign="center" py={4}>
+            No se encontraron versiones
+          </Typography>
+        )}
+
+        {availableVersions.length === 0 && alreadyAddedVersions.length > 0 && (
+          <Typography variant="body2" color="text.secondary" textAlign="center" py={4}>
+            Todas las versiones filtradas ya están en el repertorio
+          </Typography>
+        )}
+
+        {availableVersions.map((version) => (
+          <Card
+            key={version.id}
+            sx={{
+              p: 2,
+              mb: 1,
+              cursor: 'pointer',
+              backgroundColor: selectedVersionIds.includes(version.id) ? 'action.selected' : 'background.paper',
+              '&:hover': {
+                backgroundColor: 'action.hover',
+              },
+            }}
+            onClick={() => handleToggleVersion(version.id)}
+          >
+            <Box display="flex" alignItems="center" gap={2}>
+              <input
+                type="checkbox"
+                checked={selectedVersionIds.includes(version.id)}
+                onChange={() => handleToggleVersion(version.id)}
+                style={{ cursor: 'pointer' }}
+              />
+              <Avatar sx={{ backgroundColor: 'secondary.main' }}>
+                <Music size={20} />
+              </Avatar>
+              <Box flexGrow={1}>
+                <Typography variant="subtitle2">
+                  {version.theme_title || 'Sin tema'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {(version as any).artist || 'Sin artista'} • {version.title}
+                </Typography>
+              </Box>
+              <Chip
+                size="small"
+                label={(version as any).type_display || version.type}
+                color="secondary"
+              />
+            </Box>
+          </Card>
+        ))}
+
+        {/* Versiones ya agregadas (solo informativo) */}
+        {alreadyAddedVersions.length > 0 && (
+          <Box mt={3}>
+            <Typography variant="subtitle2" color="text.secondary" mb={1}>
+              Ya en el repertorio ({alreadyAddedVersions.length})
+            </Typography>
+            {alreadyAddedVersions.map((version) => (
+              <Card
+                key={version.id}
+                sx={{
+                  p: 2,
+                  mb: 1,
+                  opacity: 0.6,
+                  backgroundColor: 'action.disabledBackground',
+                }}
+              >
+                <Box display="flex" alignItems="center" gap={2}>
+                  <Avatar sx={{ backgroundColor: 'grey.500' }}>
+                    <Music size={20} />
+                  </Avatar>
+                  <Box flexGrow={1}>
+                    <Typography variant="subtitle2">
+                      {version.theme_title || 'Sin tema'}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {(version as any).artist || 'Sin artista'} • {version.title}
+                    </Typography>
+                  </Box>
+                  <Chip
+                    size="small"
+                    label="Ya agregada"
+                    color="default"
+                  />
+                </Box>
+              </Card>
+            ))}
+          </Box>
+        )}
+      </Box>
+
+      {/* Botones de acción */}
+      <Box display="flex" gap={2} justifyContent="flex-end" mt={3}>
+        <Button onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleSubmit}
+          disabled={submitting || selectedVersionIds.length === 0}
+          startIcon={submitting ? <CircularProgress size={16} /> : <Plus size={16} />}
+        >
+          {submitting ? 'Agregando...' : `Agregar ${selectedVersionIds.length} versiones`}
+        </Button>
       </Box>
     </Box>
   );

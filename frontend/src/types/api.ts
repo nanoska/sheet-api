@@ -108,6 +108,7 @@ export interface Location {
   contact_email?: string;
   contact_phone?: string;
   website?: string;
+  google_url?: string;
   notes?: string;
   is_active: boolean;
   created_at: string;

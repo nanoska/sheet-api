@@ -21,7 +21,7 @@ class LocationAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at', 'updated_at')
     fieldsets = (
         ('Información Básica', {
-            'fields': ('name', 'description')
+            'fields': ('name',)
         }),
         ('Ubicación', {
             'fields': ('address', 'city', 'postal_code', 'country')

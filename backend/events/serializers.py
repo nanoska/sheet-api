@@ -91,11 +91,13 @@ class EventSerializer(serializers.ModelSerializer):
     def validate(self, data):
         start_datetime = data.get('start_datetime')
         end_datetime = data.get('end_datetime')
-        
+
         if start_datetime and end_datetime and start_datetime >= end_datetime:
             raise serializers.ValidationError({
                 'end_datetime': 'La fecha de finalización debe ser posterior a la de inicio.'
             })
+
+        return data
             
 class EventCarouselSerializer(serializers.ModelSerializer):
     """

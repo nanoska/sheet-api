@@ -2,6 +2,7 @@ from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from django.utils.text import slugify
 from music.models import Version
 
 class Location(models.Model):
@@ -21,6 +22,7 @@ class Location(models.Model):
     contact_email = models.EmailField(verbose_name='Email de contacto', blank=True, null=True)
     contact_phone = models.CharField(max_length=20, verbose_name='Teléfono de contacto', blank=True, null=True)
     website = models.URLField(verbose_name='Sitio web', blank=True, null=True)
+    google_url = models.URLField(verbose_name='URL de Google Maps', blank=True, null=True)
     notes = models.TextField(verbose_name='Notas adicionales', blank=True)
     is_active = models.BooleanField(default=True, verbose_name='Activo')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -102,6 +104,13 @@ class Event(models.Model):
     ]
 
     title = models.CharField(max_length=200, verbose_name='Título del evento')
+    slug = models.SlugField(
+        max_length=100,
+        unique=True,
+        blank=True,
+        verbose_name='Slug',
+        help_text='URL amigable generada automáticamente desde el título'
+    )
     event_type = models.CharField(
         max_length=20,
         choices=EVENT_TYPE_CHOICES,
@@ -168,6 +177,22 @@ class Event(models.Model):
             raise ValidationError('No se puede crear un evento con fecha en el pasado')
 
     def save(self, *args, **kwargs):
+        # Generar slug único si no existe
+        if not self.slug and self.title:
+            base_slug = slugify(self.title)[:50]
+            slug = base_slug
+            counter = 1
+
+            # Encontrar slug único
+            while Event.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+                if len(slug) > 100:
+                    base_slug = base_slug[:50 - len(str(counter)) - 1]
+                    slug = f"{base_slug}-{counter}"
+
+            self.slug = slug
+
         self.full_clean()
         super().save(*args, **kwargs)
 

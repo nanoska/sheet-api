@@ -4,11 +4,12 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
+from django.db import models
 
-from .models import Location, Repertoire, Event
+from .models import Location, Repertoire, Event, RepertoireVersion
 from .serializers import (
-    LocationSerializer, 
-    RepertoireSerializer, 
+    LocationSerializer,
+    RepertoireSerializer,
     EventSerializer,
     EventCarouselSerializer,
     RepertoireCarouselSerializer,
@@ -16,6 +17,7 @@ from .serializers import (
     JamDeVientosEventSerializer
 )
 from .filters import EventFilter, RepertoireFilter
+from music.models import Version
 
 class LocationViewSet(viewsets.ModelViewSet):
     """
@@ -65,6 +67,101 @@ class RepertoireViewSet(viewsets.ModelViewSet):
         """
         instance.is_active = False
         instance.save()
+
+    @action(detail=True, methods=['post'])
+    def add_versions(self, request, pk=None):
+        """
+        Agrega una o más versiones al repertorio.
+
+        Payload esperado:
+        {
+            "version_ids": [1, 2, 3],
+            "notes": "Notas opcionales"  # opcional, se aplica a todas
+        }
+        """
+        repertoire = self.get_object()
+        version_ids = request.data.get('version_ids', [])
+        notes = request.data.get('notes', '')
+
+        if not version_ids:
+            return Response(
+                {'error': 'version_ids es requerido'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        added_versions = []
+        errors = []
+
+        for version_id in version_ids:
+            try:
+                version = Version.objects.get(id=version_id)
+
+                # Verificar si ya existe
+                if RepertoireVersion.objects.filter(
+                    repertoire=repertoire,
+                    version=version
+                ).exists():
+                    errors.append(f'Version {version_id} ya está en el repertorio')
+                    continue
+
+                # Obtener el siguiente orden
+                max_order = RepertoireVersion.objects.filter(
+                    repertoire=repertoire
+                ).aggregate(models.Max('order'))['order__max'] or -1
+
+                # Crear RepertoireVersion
+                rv = RepertoireVersion.objects.create(
+                    repertoire=repertoire,
+                    version=version,
+                    order=max_order + 1,
+                    notes=notes
+                )
+                added_versions.append(rv.id)
+
+            except Version.DoesNotExist:
+                errors.append(f'Version {version_id} no encontrada')
+
+        serializer = self.get_serializer(repertoire)
+        return Response({
+            'message': f'{len(added_versions)} versiones agregadas',
+            'added': added_versions,
+            'errors': errors,
+            'repertoire': serializer.data
+        }, status=status.HTTP_201_CREATED if added_versions else status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['delete'])
+    def remove_version(self, request, pk=None):
+        """
+        Elimina una versión del repertorio.
+
+        Query param: version_id
+        """
+        repertoire = self.get_object()
+        version_id = request.query_params.get('version_id')
+
+        if not version_id:
+            return Response(
+                {'error': 'version_id es requerido'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            rv = RepertoireVersion.objects.get(
+                repertoire=repertoire,
+                version_id=version_id
+            )
+            rv.delete()
+
+            serializer = self.get_serializer(repertoire)
+            return Response({
+                'message': 'Versión eliminada del repertorio',
+                'repertoire': serializer.data
+            })
+        except RepertoireVersion.DoesNotExist:
+            return Response(
+                {'error': 'Esta versión no está en el repertorio'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
 class EventViewSet(viewsets.ModelViewSet):
     """

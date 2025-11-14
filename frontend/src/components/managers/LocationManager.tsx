@@ -36,6 +36,7 @@ interface LocationFormData {
   contact_email: string;
   contact_phone: string;
   website: string;
+  google_url: string;
   notes: string;
 }
 
@@ -58,6 +59,7 @@ const LocationManager: React.FC = () => {
     contact_email: '',
     contact_phone: '',
     website: '',
+    google_url: '',
     notes: '',
   });
 
@@ -89,6 +91,7 @@ const LocationManager: React.FC = () => {
         contact_email: location.contact_email || '',
         contact_phone: location.contact_phone || '',
         website: location.website || '',
+        google_url: location.google_url || '',
         notes: location.notes || '',
       });
     } else {
@@ -103,6 +106,7 @@ const LocationManager: React.FC = () => {
         contact_email: '',
         contact_phone: '',
         website: '',
+        google_url: '',
         notes: '',
       });
     }
@@ -253,6 +257,22 @@ const LocationManager: React.FC = () => {
                     </Typography>
                   </Box>
                 )}
+
+                {location.google_url && (
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <MapPin size={14} />
+                    <Typography
+                      variant="body2"
+                      color="primary.main"
+                      component="a"
+                      href={location.google_url}
+                      target="_blank"
+                      sx={{ textDecoration: 'none' }}
+                    >
+                      Google Maps
+                    </Typography>
+                  </Box>
+                )}
               </Box>
             </Card>
         ))}
@@ -337,6 +357,15 @@ const LocationManager: React.FC = () => {
               value={formData.website}
               onChange={(e) => setFormData(prev => ({ ...prev, website: e.target.value }))}
               fullWidth
+            />
+
+            <TextField
+              label="Google Maps URL"
+              type="url"
+              value={formData.google_url}
+              onChange={(e) => setFormData(prev => ({ ...prev, google_url: e.target.value }))}
+              fullWidth
+              placeholder="https://maps.google.com/..."
             />
 
             <TextField
