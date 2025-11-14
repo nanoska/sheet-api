@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'music',
     'events',
     'music_learning',
+    'jdv',  # Jam de Vientos API endpoints
 ]
 
 MIDDLEWARE = [

@@ -50,6 +50,7 @@ urlpatterns = [
         path('', include('music.urls')),
         path('events/', include('events.urls')),
         path('', include('music_learning.urls')),
+        path('jdv/', include('jdv.urls')),  # Jam de Vientos API endpoints
     ])),
 ]
 
