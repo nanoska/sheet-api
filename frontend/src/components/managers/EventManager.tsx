@@ -151,7 +151,14 @@ const EventManager: React.FC = () => {
         ...formData,
         start_datetime: new Date(formData.start_datetime).toISOString(),
         end_datetime: new Date(formData.end_datetime).toISOString(),
+        // Backend expects location_id and repertoire_id for write operations
+        location_id: formData.location,
+        repertoire_id: formData.repertoire,
       };
+
+      // Remove the original location and repertoire fields
+      delete (eventData as any).location;
+      delete (eventData as any).repertoire;
 
       if (editingEvent) {
         await apiService.updateEvent(editingEvent.id, eventData as any);
