@@ -82,64 +82,6 @@ class VersionSerializer(serializers.ModelSerializer):
         return obj.has_own_audio
 
 
-class VersionDetailSerializer(serializers.ModelSerializer):
-    theme = ThemeSerializer(read_only=True)
-    sheet_music = SheetMusicSerializer(many=True, read_only=True)
-    version_files = VersionFileSerializer(many=True, read_only=True)
-    version_files_count = serializers.SerializerMethodField()
-    type_display = serializers.ReadOnlyField(source='get_type_display')
-    image_url = serializers.SerializerMethodField()
-    audio_url = serializers.SerializerMethodField()
-    has_own_image = serializers.SerializerMethodField()
-    has_own_audio = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Version
-        fields = [
-            'id', 'theme', 'title', 'type', 'type_display',
-            'image', 'image_url', 'has_own_image',
-            'audio_file', 'audio_url', 'has_own_audio',
-            'mus_file', 'notes',
-            'sheet_music', 'version_files', 'version_files_count',
-            'created_at', 'updated_at'
-        ]
-
-    def get_version_files_count(self, obj):
-        return obj.version_files.count()
-
-    def get_image_url(self, obj):
-        """Return image URL using inheritance chain (Version → Theme)"""
-        image = obj.get_image
-        return image.url if image and hasattr(image, 'url') else None
-
-    def get_audio_url(self, obj):
-        """Return audio URL using inheritance chain (Version → Theme)"""
-        audio = obj.get_audio
-        return audio.url if audio and hasattr(audio, 'url') else None
-
-    def get_has_own_image(self, obj):
-        """Return True if version has its own image"""
-        return obj.has_own_image
-
-    def get_has_own_audio(self, obj):
-        """Return True if version has its own audio"""
-        return obj.has_own_audio
-
-
-class SheetMusicDetailSerializer(serializers.ModelSerializer):
-    instrument = InstrumentSerializer(read_only=True)
-    version = VersionSerializer(read_only=True)
-    type_display = serializers.ReadOnlyField(source='get_type_display')
-    clef_display = serializers.ReadOnlyField(source='get_clef_display')
-
-    class Meta:
-        model = SheetMusic
-        fields = [
-            'id', 'version', 'instrument', 'type', 'type_display', 'clef', 'clef_display',
-            'tonalidad_relativa', 'file', 'created_at', 'updated_at'
-        ]
-
-
 class VersionFileSerializer(serializers.ModelSerializer):
     """Serializer for VersionFile model with display fields"""
     version_title = serializers.ReadOnlyField(source='version.title')
@@ -223,6 +165,64 @@ class VersionFileSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'file_type': 'STANDARD_SCORE can only be used with GRUPO_REDUCIDO versions'})
 
         return data
+
+
+class VersionDetailSerializer(serializers.ModelSerializer):
+    theme = ThemeSerializer(read_only=True)
+    sheet_music = SheetMusicSerializer(many=True, read_only=True)
+    version_files = VersionFileSerializer(many=True, read_only=True)
+    version_files_count = serializers.SerializerMethodField()
+    type_display = serializers.ReadOnlyField(source='get_type_display')
+    image_url = serializers.SerializerMethodField()
+    audio_url = serializers.SerializerMethodField()
+    has_own_image = serializers.SerializerMethodField()
+    has_own_audio = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Version
+        fields = [
+            'id', 'theme', 'title', 'type', 'type_display',
+            'image', 'image_url', 'has_own_image',
+            'audio_file', 'audio_url', 'has_own_audio',
+            'mus_file', 'notes',
+            'sheet_music', 'version_files', 'version_files_count',
+            'created_at', 'updated_at'
+        ]
+
+    def get_version_files_count(self, obj):
+        return obj.version_files.count()
+
+    def get_image_url(self, obj):
+        """Return image URL using inheritance chain (Version → Theme)"""
+        image = obj.get_image
+        return image.url if image and hasattr(image, 'url') else None
+
+    def get_audio_url(self, obj):
+        """Return audio URL using inheritance chain (Version → Theme)"""
+        audio = obj.get_audio
+        return audio.url if audio and hasattr(audio, 'url') else None
+
+    def get_has_own_image(self, obj):
+        """Return True if version has its own image"""
+        return obj.has_own_image
+
+    def get_has_own_audio(self, obj):
+        """Return True if version has its own audio"""
+        return obj.has_own_audio
+
+
+class SheetMusicDetailSerializer(serializers.ModelSerializer):
+    instrument = InstrumentSerializer(read_only=True)
+    version = VersionSerializer(read_only=True)
+    type_display = serializers.ReadOnlyField(source='get_type_display')
+    clef_display = serializers.ReadOnlyField(source='get_clef_display')
+
+    class Meta:
+        model = SheetMusic
+        fields = [
+            'id', 'version', 'instrument', 'type', 'type_display', 'clef', 'clef_display',
+            'tonalidad_relativa', 'file', 'created_at', 'updated_at'
+        ]
 
 
 class VersionFileDetailSerializer(serializers.ModelSerializer):
