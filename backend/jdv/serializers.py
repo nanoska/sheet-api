@@ -136,11 +136,14 @@ class JDVLocationSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'address', 'city', 'postal_code', 'country',
             'capacity', 'contact_email', 'contact_phone', 'website',
-            'google_maps_url', 'notes', 'is_active'
+            'google_url', 'google_maps_url', 'notes', 'is_active'
         ]
 
     def get_google_maps_url(self, obj):
-        """Generate Google Maps search URL for this location."""
+        """Return google_url if exists, otherwise generate Google Maps search URL."""
+        if obj.google_url:
+            return obj.google_url
+
         import urllib.parse
         query = f"{obj.name}, {obj.address}, {obj.city}, {obj.country}"
         encoded_query = urllib.parse.quote(query)

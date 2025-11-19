@@ -24,7 +24,7 @@ class LocationAdmin(admin.ModelAdmin):
             'fields': ('name',)
         }),
         ('Ubicación', {
-            'fields': ('address', 'city', 'postal_code', 'country')
+            'fields': ('address', 'city', 'postal_code', 'country', 'google_url')
         }),
         ('Contacto', {
             'fields': ('contact_email', 'contact_phone', 'website')
