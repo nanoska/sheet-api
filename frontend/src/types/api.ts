@@ -27,13 +27,19 @@ export interface Version {
   type: 'STANDARD' | 'ENSAMBLE' | 'DUETO' | 'GRUPO_REDUCIDO';
   type_display?: string;
   image?: string;
+  image_url?: string;  // URL de la imagen (propia o heredada del tema)
+  has_own_image?: boolean;  // true si tiene imagen propia, false si hereda del tema
   audio_file?: string;
+  audio_url?: string;  // URL del audio (propio o heredado del tema)
+  has_own_audio?: boolean;  // true si tiene audio propio, false si hereda del tema
   mus_file?: string;
   notes: string;
   sheet_music_count?: number;
+  version_files_count?: number;
   created_at: string;
   updated_at: string;
   sheet_music?: SheetMusic[];
+  version_files?: VersionFile[];
 }
 
 export interface SheetMusic {
@@ -54,15 +60,25 @@ export interface VersionFile {
   version_title?: string;
   theme_title?: string;
   version_type?: 'STANDARD' | 'ENSAMBLE' | 'DUETO' | 'GRUPO_REDUCIDO';
-  file_type: 'DUETO_TRANSPOSITION' | 'ENSAMBLE_INSTRUMENT' | 'STANDARD_SCORE';
+  file_type: 'STANDARD_INSTRUMENT' | 'DUETO_TRANSPOSITION' | 'ENSAMBLE_INSTRUMENT' | 'STANDARD_SCORE';
   file_type_display?: string;
   tuning?: 'Bb' | 'Eb' | 'F' | 'C' | 'C_BASS';
   tuning_display?: string;
   instrument?: number;
   instrument_name?: string;
+  // New fields for STANDARD_INSTRUMENT support
+  sheet_type?: 'MELODIA_PRINCIPAL' | 'MELODIA_SECUNDARIA' | 'ARMONIA' | 'BAJO';
+  sheet_type_display?: string;
+  clef?: 'SOL' | 'FA';
+  clef_display?: string;
+  tonalidad_relativa?: string;
+  // Files
   file: string | File;
   audio?: string | File;
-  has_audio?: boolean;
+  // Inheritance fields
+  image_url?: string;  // Heredado de Version → Theme
+  audio_url?: string;  // Propio o heredado de Version → Theme
+  has_own_audio?: boolean;  // true si tiene audio propio
   description?: string;
   created_at: string;
   updated_at: string;
@@ -70,9 +86,12 @@ export interface VersionFile {
 
 export interface VersionFileCreate {
   version: number;
-  file_type: 'DUETO_TRANSPOSITION' | 'ENSAMBLE_INSTRUMENT' | 'STANDARD_SCORE';
+  file_type: 'STANDARD_INSTRUMENT' | 'DUETO_TRANSPOSITION' | 'ENSAMBLE_INSTRUMENT' | 'STANDARD_SCORE';
   tuning?: 'Bb' | 'Eb' | 'F' | 'C' | 'C_BASS';
   instrument?: number;
+  // New fields for STANDARD_INSTRUMENT
+  sheet_type?: 'MELODIA_PRINCIPAL' | 'MELODIA_SECUNDARIA' | 'ARMONIA' | 'BAJO';
+  clef?: 'SOL' | 'FA';
   file: File;
   audio?: File;
   description?: string;
