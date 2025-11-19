@@ -339,7 +339,7 @@ const VersionFileManager: React.FC = () => {
               {versionFile.instrument_name && (
                 <Chip label={versionFile.instrument_name} size="small" variant="outlined" />
               )}
-              {versionFile.has_audio && (
+              {versionFile.has_own_audio && (
                 <Chip
                   icon={<Music2 size={14} />}
                   label="Audio"

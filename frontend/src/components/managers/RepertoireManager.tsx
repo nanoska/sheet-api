@@ -17,7 +17,6 @@ import {
   ListItem,
   ListItemText,
   MenuItem,
-  Checkbox,
 } from '@mui/material';
 import { useDropzone } from 'react-dropzone';
 import {
@@ -69,6 +68,7 @@ const RepertoireManager: React.FC = () => {
     image: null as File | null,
     audio_file: null as File | null,
     mus_file: null as File | null,
+    removeImage: false,
   });
 
   const [formData, setFormData] = useState<RepertoireFormData>({
@@ -161,6 +161,7 @@ const RepertoireManager: React.FC = () => {
       image: null,
       audio_file: null,
       mus_file: null,
+      removeImage: false,
     });
     setVersionEditDialogOpen(true);
   };
@@ -175,7 +176,13 @@ const RepertoireManager: React.FC = () => {
       formDataToSend.append('type', versionFormData.type);
       formDataToSend.append('notes', versionFormData.notes);
 
-      if (versionFormData.image) formDataToSend.append('image', versionFormData.image);
+      // Manejar imagen: si se marca para eliminar, enviar string vacío; si hay nueva, enviarla
+      if (versionFormData.removeImage) {
+        formDataToSend.append('image', '');
+      } else if (versionFormData.image) {
+        formDataToSend.append('image', versionFormData.image);
+      }
+
       if (versionFormData.audio_file) formDataToSend.append('audio_file', versionFormData.audio_file);
       if (versionFormData.mus_file) formDataToSend.append('mus_file', versionFormData.mus_file);
 
@@ -399,6 +406,7 @@ const RepertoireManager: React.FC = () => {
               onViewSheetMusic={handleViewSheetMusic}
               onEditVersion={handleEditVersion}
               onRefresh={loadData}
+              onAddVersions={() => setAddVersionsDialogOpen(true)}
             />
           )}
         </DialogContent>
@@ -458,13 +466,16 @@ const RepertoireManager: React.FC = () => {
       >
         <DialogTitle>Editar Versión</DialogTitle>
         <DialogContent>
-          <VersionEditForm
-            formData={versionFormData}
-            setFormData={setVersionFormData}
-            onSubmit={handleUpdateVersion}
-            onCancel={() => setVersionEditDialogOpen(false)}
-            submitting={submitting}
-          />
+          {editingVersion && (
+            <VersionEditForm
+              version={editingVersion}
+              formData={versionFormData}
+              setFormData={setVersionFormData}
+              onSubmit={handleUpdateVersion}
+              onCancel={() => setVersionEditDialogOpen(false)}
+              submitting={submitting}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
@@ -474,12 +485,13 @@ const RepertoireManager: React.FC = () => {
 
 // Componente para formulario de edición de versión
 const VersionEditForm: React.FC<{
+  version: Version;
   formData: any;
   setFormData: (data: any) => void;
   onSubmit: () => void;
   onCancel: () => void;
   submitting: boolean;
-}> = ({ formData, setFormData, onSubmit, onCancel, submitting }) => {
+}> = ({ version, formData, setFormData, onSubmit, onCancel, submitting }) => {
 
   const VERSION_TYPES = [
     { value: 'STANDARD', label: 'Standard' },
@@ -491,7 +503,9 @@ const VersionEditForm: React.FC<{
   const { getRootProps: getImageRootProps, getInputProps: getImageInputProps } = useDropzone({
     accept: { 'image/*': ['.jpg', '.jpeg', '.png', '.webp'] },
     multiple: false,
-    onDrop: (files) => setFormData((prev: any) => ({ ...prev, image: files[0] })),
+    onDrop: (files) => {
+      setFormData((prev: any) => ({ ...prev, image: files[0], removeImage: false }));
+    },
   });
 
   const { getRootProps: getAudioRootProps, getInputProps: getAudioInputProps } = useDropzone({
@@ -539,6 +553,58 @@ const VersionEditForm: React.FC<{
         fullWidth
       />
 
+      {/* Vista previa de imagen actual */}
+      {version.image_url && !formData.image && !formData.removeImage && (
+        <Card sx={{ p: 2, backgroundColor: 'background.default' }}>
+          <Typography variant="subtitle2" gutterBottom>
+            Imagen actual
+          </Typography>
+          <Box display="flex" alignItems="center" gap={2}>
+            <Box
+              component="img"
+              src={version.image_url}
+              alt={version.title}
+              sx={{
+                width: 100,
+                height: 100,
+                objectFit: 'cover',
+                borderRadius: 1,
+                border: version.has_own_image ? '2px solid #00d4aa' : '2px solid #999',
+              }}
+            />
+            <Box flexGrow={1}>
+              <Chip
+                size="small"
+                label={version.has_own_image ? 'Imagen propia' : 'Heredada del tema'}
+                color={version.has_own_image ? 'primary' : 'default'}
+                sx={{ mb: 1 }}
+              />
+              <Typography variant="caption" display="block" color="text.secondary">
+                {version.has_own_image
+                  ? 'Esta versión tiene su propia imagen'
+                  : 'Esta versión usa la imagen del tema'}
+              </Typography>
+              {version.has_own_image && (
+                <Button
+                  size="small"
+                  color="error"
+                  onClick={() => setFormData((prev: any) => ({ ...prev, removeImage: true }))}
+                  sx={{ mt: 1 }}
+                >
+                  Eliminar imagen propia
+                </Button>
+              )}
+            </Box>
+          </Box>
+        </Card>
+      )}
+
+      {formData.removeImage && (
+        <Alert severity="warning">
+          La imagen propia será eliminada al guardar. La versión heredará la imagen del tema.
+        </Alert>
+      )}
+
       <Box display="flex" gap={2}>
         <Box
           {...getImageRootProps()}
@@ -554,7 +620,7 @@ const VersionEditForm: React.FC<{
           <input {...getImageInputProps()} />
           <Upload size={20} />
           <Typography variant="caption" display="block">
-            {formData.image ? formData.image.name : 'Imagen'}
+            {formData.image ? formData.image.name : formData.removeImage ? 'Subir nueva imagen (opcional)' : 'Cambiar imagen'}
           </Typography>
         </Box>
         <Box
@@ -613,7 +679,8 @@ const VersionsGrid: React.FC<{
   onViewSheetMusic: (version: Version) => void;
   onEditVersion: (version: Version) => void;
   onRefresh?: () => void;
-}> = ({ repertoire, onViewSheetMusic, onEditVersion, onRefresh }) => {
+  onAddVersions?: () => void;
+}> = ({ repertoire, onViewSheetMusic, onEditVersion, onRefresh, onAddVersions }) => {
   const [sheetMusicCounts, setSheetMusicCounts] = useState<Record<number, number>>({});
 
   // Estados para dialog de información de versión
@@ -655,20 +722,16 @@ const VersionsGrid: React.FC<{
         <Typography variant="body2" color="text.secondary" mb={3}>
           Agrega versiones de temas musicales a este repertorio
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<Plus size={16} />}
-          onClick={() => {
-            // Necesitamos llamar a una función parent para abrir el dialog
-            if (onRefresh) {
-              // Usamos un evento personalizado para abrir el dialog
-              window.dispatchEvent(new CustomEvent('openAddVersionsDialog'));
-            }
-          }}
-          color="primary"
-        >
-          Agregar Versiones
-        </Button>
+        {onAddVersions && (
+          <Button
+            variant="contained"
+            startIcon={<Plus size={16} />}
+            onClick={onAddVersions}
+            color="primary"
+          >
+            Agregar Versiones
+          </Button>
+        )}
       </Box>
     );
   }
@@ -779,7 +842,9 @@ const SheetMusicForVersionInRepertoire: React.FC<{
   versionId: number;
   onClose: () => void;
 }> = ({ versionId, onClose }) => {
+  const [version, setVersion] = useState<Version | null>(null);
   const [sheetMusic, setSheetMusic] = useState<any[]>([]);
+  const [versionFiles, setVersionFiles] = useState<any[]>([]);
   const [instruments, setInstruments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -827,13 +892,17 @@ const SheetMusicForVersionInRepertoire: React.FC<{
 
   const loadData = async () => {
     try {
-      const [sheetsData, instrumentsData] = await Promise.all([
+      const [versionData, sheetsData, versionFilesData, instrumentsData] = await Promise.all([
+        apiService.getVersion(versionId),
         fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/v1/sheet-music/?version=${versionId}`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
         }).then(res => res.json()),
+        apiService.getVersionFiles({ version: versionId }),
         apiService.getInstruments(),
       ]);
+      setVersion(versionData);
       setSheetMusic(Array.isArray(sheetsData) ? sheetsData : (sheetsData as any).results || []);
+      setVersionFiles(Array.isArray(versionFilesData) ? versionFilesData : (versionFilesData as any).results || []);
       setInstruments(Array.isArray(instrumentsData) ? instrumentsData : (instrumentsData as any).results || []);
     } catch (err) {
       console.error('Error loading sheet music:', err);
@@ -918,6 +987,17 @@ const SheetMusicForVersionInRepertoire: React.FC<{
     }
   };
 
+  const handleDeleteVersionFile = async (fileId: number) => {
+    if (!window.confirm('¿Eliminar este archivo?')) return;
+
+    try {
+      await apiService.deleteVersionFile(fileId);
+      await loadData();
+    } catch (err) {
+      console.error('Error deleting version file:', err);
+    }
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" py={4}>
@@ -926,23 +1006,93 @@ const SheetMusicForVersionInRepertoire: React.FC<{
     );
   }
 
+  // Detectar si la versión usa VersionFiles en lugar de SheetMusic
+  const usesVersionFiles = version && ['DUETO', 'ENSAMBLE', 'GRUPO_REDUCIDO'].includes(version.type);
+
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography variant="h6">
-          Partituras ({sheetMusic.length})
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<Plus size={16} />}
-          onClick={() => setDialogOpen(true)}
-        >
-          Agregar Partitura
-        </Button>
-      </Box>
+      {/* Mostrar VersionFiles si corresponde */}
+      {usesVersionFiles ? (
+        <>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Typography variant="h6">
+              Archivos ({versionFiles.length})
+            </Typography>
+            <Alert severity="info" sx={{ flexGrow: 1, mx: 2 }}>
+              Para versiones tipo {version?.type_display}, use el Administrador de Versiones para agregar archivos
+            </Alert>
+          </Box>
 
-      <Box display="grid" gridTemplateColumns="repeat(auto-fill, minmax(300px, 1fr))" gap={2}>
-        {sheetMusic.map((sheet) => (
+          <Box display="grid" gridTemplateColumns="repeat(auto-fill, minmax(300px, 1fr))" gap={2}>
+            {versionFiles.map((file: any) => (
+              <Card key={file.id} sx={{ p: 2 }}>
+                <Box display="flex" alignItems="center" gap={2}>
+                  <Avatar sx={{ backgroundColor: 'primary.main' }}>
+                    <FileText size={20} />
+                  </Avatar>
+                  <Box flexGrow={1}>
+                    <Typography variant="subtitle2">
+                      {file.tuning_display || file.instrument_name || file.file_type_display}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {file.file_type_display}
+                    </Typography>
+                  </Box>
+                  <IconButton
+                    size="small"
+                    component="a"
+                    href={typeof file.file === 'string' ? file.file : '#'}
+                    target="_blank"
+                    color="primary"
+                    title="Descargar PDF"
+                  >
+                    <Download size={16} />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleDeleteVersionFile(file.id)}
+                    color="error"
+                    title="Eliminar Archivo"
+                  >
+                    <Trash2 size={16} />
+                  </IconButton>
+                </Box>
+                {file.description && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    {file.description}
+                  </Typography>
+                )}
+                {file.has_own_audio && (
+                  <Chip
+                    size="small"
+                    icon={<Music size={14} />}
+                    label="Audio disponible"
+                    color="secondary"
+                    sx={{ mt: 1 }}
+                  />
+                )}
+              </Card>
+            ))}
+          </Box>
+        </>
+      ) : (
+        /* Interfaz para SheetMusic (versiones STANDARD) */
+        <>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Typography variant="h6">
+              Partituras ({sheetMusic.length})
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<Plus size={16} />}
+              onClick={() => setDialogOpen(true)}
+            >
+              Agregar Partitura
+            </Button>
+          </Box>
+
+          <Box display="grid" gridTemplateColumns="repeat(auto-fill, minmax(300px, 1fr))" gap={2}>
+            {sheetMusic.map((sheet) => (
           <Card key={sheet.id} sx={{ p: 2 }}>
             <Box display="flex" alignItems="center" gap={2}>
               <Avatar sx={{ backgroundColor: 'error.main' }}>
@@ -1174,6 +1324,8 @@ const SheetMusicForVersionInRepertoire: React.FC<{
           )}
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </Box>
   );
 };
@@ -1228,16 +1380,17 @@ const VersionInfoContentRepertoire: React.FC<{
     <Box pt={1}>
       {/* Información básica de la versión */}
       <Box display="flex" gap={3} mb={4}>
-        {version.image && (
+        {version.image_url && (
           <Box
             component="img"
-            src={version.image}
+            src={version.image_url}
             alt={version.title}
             sx={{
               width: 120,
               height: 120,
               objectFit: 'cover',
               borderRadius: 2,
+              border: version.has_own_image ? '2px solid #00d4aa' : '2px solid #999',
             }}
           />
         )}

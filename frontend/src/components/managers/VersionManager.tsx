@@ -857,7 +857,7 @@ const DuetoForm: React.FC<{ versionId: number }> = ({ versionId }) => {
                 <Typography variant="caption" color="text.secondary">
                   Transposición
                 </Typography>
-                {file.has_audio && (
+                {file.has_own_audio && (
                   <Chip
                     size="small"
                     label="Audio"
@@ -1125,7 +1125,7 @@ const MultiInstrumentForm: React.FC<{ versionId: number; versionType: 'GRUPO_RED
                 <Typography variant="caption" color="text.secondary">
                   Instrumento
                 </Typography>
-                {file.has_audio && (
+                {file.has_own_audio && (
                   <Chip
                     size="small"
                     label="Audio"
