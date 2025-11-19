@@ -292,13 +292,25 @@ const VersionManager: React.FC = () => {
         {filteredVersions.map((version) => (
           <Card key={version.id} sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
               <Box display="flex" alignItems="flex-start" gap={2}>
-                <Avatar sx={{ backgroundColor: 'secondary.main' }}>
-                  <FileText size={24} />
+                <Avatar
+                  sx={{
+                    backgroundColor: version.image_url ? 'transparent' : 'secondary.main',
+                    width: 56,
+                    height: 56,
+                  }}
+                  src={version.image_url || undefined}
+                >
+                  {!version.image_url && <FileText size={24} />}
                 </Avatar>
 
                 <Box flexGrow={1} minWidth={0}>
                   <Typography variant="h6" noWrap>
                     {version.title}
+                    {version.image_url && !version.has_own_image && (
+                      <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                        (heredada)
+                      </Typography>
+                    )}
                   </Typography>
                   <Typography variant="body2" color="text.secondary" noWrap>
                     {(version as any).theme_title}
@@ -341,10 +353,10 @@ const VersionManager: React.FC = () => {
               )}
 
               <Box mt="auto" pt={2} display="flex" gap={1}>
-                {version.audio_file && <Chip size="small" label="Audio" />}
+                {version.audio_url && <Chip size="small" label="Audio" sx={{ bgcolor: version.has_own_audio ? '#4fc3f722' : '#99999922', color: version.has_own_audio ? '#4fc3f7' : '#999' }} />}
                 {version.mus_file && <Chip size="small" label="Score" />}
                 <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
-                  {(version as any).sheet_music_count || 0} sheets
+                  {version.version_files_count || 0} files
                 </Typography>
               </Box>
             </Card>
@@ -524,15 +536,15 @@ const SheetMusicForVersion: React.FC<{ versionId: number }> = ({ versionId }) =>
   }
 };
 
-// Standard form - original SheetMusic functionality
+// Standard form - Uses VersionFile with file_type='STANDARD_INSTRUMENT'
 const StandardSheetForm: React.FC<{ versionId: number }> = ({ versionId }) => {
-  const [sheetMusic, setSheetMusic] = useState<any[]>([]);
+  const [versionFiles, setVersionFiles] = useState<any[]>([]);
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     instrument: null as number | null,
-    type: 'MELODIA_PRINCIPAL',
+    sheet_type: 'MELODIA_PRINCIPAL', // Changed from 'type' to 'sheet_type'
     clef: 'SOL',
     file: null as File | null,
   });
@@ -551,13 +563,14 @@ const StandardSheetForm: React.FC<{ versionId: number }> = ({ versionId }) => {
 
   const loadData = async () => {
     try {
-      const [sheetsData, instrumentsData] = await Promise.all([
-        fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/v1/sheet-music/?version=${versionId}`, {
+      const [filesData, instrumentsData] = await Promise.all([
+        // Use version-files endpoint with file_type filter
+        fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/v1/version-files/?version=${versionId}&file_type=STANDARD_INSTRUMENT`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
         }).then(res => res.json()),
         apiService.getInstruments(),
       ]);
-      setSheetMusic(Array.isArray(sheetsData) ? sheetsData : (sheetsData as any).results || []);
+      setVersionFiles(Array.isArray(filesData) ? filesData : (filesData as any).results || []);
       setInstruments(Array.isArray(instrumentsData) ? instrumentsData : (instrumentsData as any).results || []);
     } catch (err) {
       console.error('Error loading sheet music:', err);
@@ -572,12 +585,13 @@ const StandardSheetForm: React.FC<{ versionId: number }> = ({ versionId }) => {
     try {
       const formDataToSend = new FormData();
       formDataToSend.append('version', versionId.toString());
+      formDataToSend.append('file_type', 'STANDARD_INSTRUMENT'); // New unified system
       formDataToSend.append('instrument', formData.instrument.toString());
-      formDataToSend.append('type', formData.type);
+      formDataToSend.append('sheet_type', formData.sheet_type); // Changed from 'type'
       formDataToSend.append('clef', formData.clef);
       formDataToSend.append('file', formData.file);
 
-      await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/v1/sheet-music/`, {
+      await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/v1/version-files/`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
         body: formDataToSend,
@@ -585,23 +599,23 @@ const StandardSheetForm: React.FC<{ versionId: number }> = ({ versionId }) => {
 
       await loadData();
       setDialogOpen(false);
-      setFormData({ instrument: null, type: 'MELODIA_PRINCIPAL', clef: 'SOL', file: null });
+      setFormData({ instrument: null, sheet_type: 'MELODIA_PRINCIPAL', clef: 'SOL', file: null });
     } catch (err) {
-      console.error('Error uploading sheet music:', err);
+      console.error('Error uploading version file:', err);
     }
   };
 
-  const handleDelete = async (sheetId: number) => {
-    if (!window.confirm('¿Eliminar esta partitura?')) return;
+  const handleDelete = async (fileId: number) => {
+    if (!window.confirm('¿Eliminar este archivo?')) return;
 
     try {
-      await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/v1/sheet-music/${sheetId}/`, {
+      await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/v1/version-files/${fileId}/`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
       });
       await loadData();
     } catch (err) {
-      console.error('Error deleting sheet music:', err);
+      console.error('Error deleting version file:', err);
     }
   };
 
@@ -613,7 +627,7 @@ const StandardSheetForm: React.FC<{ versionId: number }> = ({ versionId }) => {
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h6">
-          Partituras Standard ({sheetMusic.length})
+          Partituras Standard ({versionFiles.length})
         </Typography>
         <Button
           variant="contained"
@@ -625,23 +639,23 @@ const StandardSheetForm: React.FC<{ versionId: number }> = ({ versionId }) => {
       </Box>
 
       <Box display="grid" gridTemplateColumns="repeat(auto-fill, minmax(300px, 1fr))" gap={2}>
-        {sheetMusic.map((sheet) => (
-          <Card key={sheet.id} sx={{ p: 2 }}>
+        {versionFiles.map((file) => (
+          <Card key={file.id} sx={{ p: 2 }}>
             <Box display="flex" alignItems="center" gap={2}>
               <Avatar sx={{ backgroundColor: 'error.main' }}>
                 <FileText size={20} />
               </Avatar>
               <Box flexGrow={1}>
                 <Typography variant="subtitle2">
-                  {sheet.instrument_name}
+                  {file.instrument_name}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  {sheet.type_display} - {sheet.clef_display}
+                  {file.sheet_type_display} - {file.clef_display}
                 </Typography>
-                {sheet.tonalidad_relativa && (
+                {file.tonalidad_relativa && (
                   <Chip
                     size="small"
-                    label={sheet.tonalidad_relativa}
+                    label={file.tonalidad_relativa}
                     color="secondary"
                     sx={{ ml: 1 }}
                   />
@@ -650,7 +664,7 @@ const StandardSheetForm: React.FC<{ versionId: number }> = ({ versionId }) => {
               <IconButton
                 size="small"
                 component="a"
-                href={sheet.file}
+                href={file.file}
                 target="_blank"
                 color="primary"
               >
@@ -658,7 +672,7 @@ const StandardSheetForm: React.FC<{ versionId: number }> = ({ versionId }) => {
               </IconButton>
               <IconButton
                 size="small"
-                onClick={() => handleDelete(sheet.id)}
+                onClick={() => handleDelete(file.id)}
                 color="error"
               >
                 <Trash2 size={16} />
@@ -683,9 +697,9 @@ const StandardSheetForm: React.FC<{ versionId: number }> = ({ versionId }) => {
             <Box display="flex" gap={2}>
               <TextField
                 select
-                label="Tipo"
-                value={formData.type}
-                onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value }))}
+                label="Tipo de Partitura"
+                value={formData.sheet_type}
+                onChange={(e) => setFormData(prev => ({ ...prev, sheet_type: e.target.value }))}
                 fullWidth
               >
                 {config.types.map((option) => (
