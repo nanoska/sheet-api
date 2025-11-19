@@ -13,14 +13,13 @@ import {
   Calendar,
   MapPin,
   List,
-  Upload,
   FolderOpen,
 } from 'lucide-react';
 import Layout from '../components/common/Layout';
 import ThemeManager from '../components/managers/ThemeManager';
 import VersionManager from '../components/managers/VersionManager';
 import VersionFileManager from '../components/managers/VersionFileManager';
-import SheetMusicManager from '../components/managers/SheetMusicManager';
+// SheetMusicManager DEPRECATED - replaced by VersionFileManager with file_type='STANDARD_INSTRUMENT'
 import EventManager from '../components/managers/EventManager';
 import LocationManager from '../components/managers/LocationManager';
 import RepertoireManager from '../components/managers/RepertoireManager';
@@ -62,7 +61,7 @@ const Dashboard: React.FC = () => {
     { label: 'Themes', icon: <Music size={20} />, component: <ThemeManager /> },
     { label: 'Versions', icon: <FileText size={20} />, component: <VersionManager /> },
     { label: 'Version Files', icon: <FolderOpen size={20} />, component: <VersionFileManager /> },
-    { label: 'Sheet Music', icon: <Upload size={20} />, component: <SheetMusicManager /> },
+    // Sheet Music tab REMOVED - VersionFile now handles all file types including STANDARD_INSTRUMENT
     { label: 'Events', icon: <Calendar size={20} />, component: <EventManager /> },
     { label: 'Locations', icon: <MapPin size={20} />, component: <LocationManager /> },
     { label: 'Repertoires', icon: <List size={20} />, component: <RepertoireManager /> },

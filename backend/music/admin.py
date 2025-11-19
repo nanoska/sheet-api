@@ -55,16 +55,18 @@ class VersionAdmin(admin.ModelAdmin):
         return super().get_queryset(request).select_related('theme')
 
 
-@admin.register(SheetMusic)
-class SheetMusicAdmin(admin.ModelAdmin):
-    list_display = ['version', 'instrument', 'type', 'clef', 'tonalidad_relativa', 'created_at']
-    list_filter = ['instrument', 'version__theme', 'type', 'clef', 'created_at']
-    search_fields = ['version__title', 'version__theme__title', 'instrument__name']
-    readonly_fields = ['created_at', 'updated_at', 'tonalidad_relativa']
-    autocomplete_fields = ['version', 'instrument']
-
-    def get_queryset(self, request):
-        return super().get_queryset(request).select_related('version', 'instrument', 'version__theme')
+# DEPRECATED: SheetMusic model replaced by VersionFile with file_type='STANDARD_INSTRUMENT'
+# Keeping for backward compatibility and data migration purposes only
+# @admin.register(SheetMusic)
+# class SheetMusicAdmin(admin.ModelAdmin):
+#     list_display = ['version', 'instrument', 'type', 'clef', 'tonalidad_relativa', 'created_at']
+#     list_filter = ['instrument', 'version__theme', 'type', 'clef', 'created_at']
+#     search_fields = ['version__title', 'version__theme__title', 'instrument__name']
+#     readonly_fields = ['created_at', 'updated_at', 'tonalidad_relativa']
+#     autocomplete_fields = ['version', 'instrument']
+#
+#     def get_queryset(self, request):
+#         return super().get_queryset(request).select_related('version', 'instrument', 'version__theme')
 
 
 @admin.register(VersionFile)

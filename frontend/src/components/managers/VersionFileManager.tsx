@@ -34,9 +34,10 @@ import { VersionFile, Version, Instrument } from '../../types/api';
 import { apiService } from '../../services/api';
 
 const FILE_TYPE_CHOICES = [
+  { value: 'STANDARD_INSTRUMENT', label: 'Standard - Instrumento Individual' }, // Replaces SheetMusic
   { value: 'DUETO_TRANSPOSITION', label: 'Dueto - Transposición' },
   { value: 'ENSAMBLE_INSTRUMENT', label: 'Ensamble - Instrumento' },
-  { value: 'STANDARD_SCORE', label: 'Standard - Partitura General' },
+  { value: 'STANDARD_SCORE', label: 'Grupo Reducido - Partitura General' },
 ];
 
 const TUNING_CHOICES = [
@@ -47,11 +48,25 @@ const TUNING_CHOICES = [
   { value: 'C_BASS', label: 'Do - Clave de Fa (Bass)' },
 ];
 
+const SHEET_TYPE_CHOICES = [
+  { value: 'MELODIA_PRINCIPAL', label: 'Melodía Principal' },
+  { value: 'MELODIA_SECUNDARIA', label: 'Melodía Secundaria' },
+  { value: 'ARMONIA', label: 'Armonía' },
+  { value: 'BAJO', label: 'Bajo' },
+];
+
+const CLEF_CHOICES = [
+  { value: 'SOL', label: 'Clave de Sol' },
+  { value: 'FA', label: 'Clave de Fa' },
+];
+
 interface VersionFileFormData {
   version: number | null;
   file_type: string;
   tuning?: string;
   instrument?: number | null;
+  sheet_type?: string; // For STANDARD_INSTRUMENT
+  clef?: string;        // For STANDARD_INSTRUMENT
   file?: File;
   audio?: File;
   description: string;
@@ -70,9 +85,11 @@ const VersionFileManager: React.FC = () => {
 
   const [formData, setFormData] = useState<VersionFileFormData>({
     version: null,
-    file_type: 'STANDARD_SCORE',
+    file_type: 'STANDARD_INSTRUMENT', // Default to most common type (replaces SheetMusic)
     tuning: undefined,
     instrument: null,
+    sheet_type: undefined,
+    clef: undefined,
     description: '',
   });
 
@@ -138,9 +155,11 @@ const VersionFileManager: React.FC = () => {
     setEditingVersionFile(null);
     setFormData({
       version: null,
-      file_type: 'STANDARD_SCORE',
+      file_type: 'STANDARD_INSTRUMENT',
       tuning: undefined,
       instrument: null,
+      sheet_type: undefined,
+      clef: undefined,
       description: '',
     });
   };
@@ -152,6 +171,21 @@ const VersionFileManager: React.FC = () => {
     }
 
     // Validation based on file_type
+    if (formData.file_type === 'STANDARD_INSTRUMENT') {
+      if (!formData.instrument) {
+        setError('Instrument is required for STANDARD_INSTRUMENT');
+        return;
+      }
+      if (!formData.sheet_type) {
+        setError('Sheet Type is required for STANDARD_INSTRUMENT');
+        return;
+      }
+      if (!formData.clef) {
+        setError('Clef is required for STANDARD_INSTRUMENT');
+        return;
+      }
+    }
+
     if (formData.file_type === 'DUETO_TRANSPOSITION' && !formData.tuning) {
       setError('Tuning is required for DUETO_TRANSPOSITION');
       return;
@@ -179,6 +213,14 @@ const VersionFileManager: React.FC = () => {
 
       if (formData.instrument) {
         formDataToSend.append('instrument', formData.instrument.toString());
+      }
+
+      if (formData.sheet_type) {
+        formDataToSend.append('sheet_type', formData.sheet_type);
+      }
+
+      if (formData.clef) {
+        formDataToSend.append('clef', formData.clef);
       }
 
       if (formData.description) {
@@ -399,6 +441,50 @@ const VersionFileManager: React.FC = () => {
               ))}
             </Select>
           </FormControl>
+
+          {formData.file_type === 'STANDARD_INSTRUMENT' && (
+            <>
+              <Autocomplete
+                fullWidth
+                options={instruments}
+                getOptionLabel={(option) => `${option.name} (${option.afinacion})`}
+                value={instruments.find(i => i.id === formData.instrument) || null}
+                onChange={(_, newValue) => setFormData(prev => ({ ...prev, instrument: newValue?.id || null }))}
+                renderInput={(params) => <TextField {...params} label="Instrument" required />}
+                sx={{ mb: 2 }}
+              />
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel>Sheet Type</InputLabel>
+                <Select
+                  value={formData.sheet_type || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, sheet_type: e.target.value }))}
+                  label="Sheet Type"
+                  required
+                >
+                  {SHEET_TYPE_CHOICES.map((choice) => (
+                    <MenuItem key={choice.value} value={choice.value}>
+                      {choice.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel>Clef</InputLabel>
+                <Select
+                  value={formData.clef || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, clef: e.target.value }))}
+                  label="Clef"
+                  required
+                >
+                  {CLEF_CHOICES.map((choice) => (
+                    <MenuItem key={choice.value} value={choice.value}>
+                      {choice.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </>
+          )}
 
           {formData.file_type === 'DUETO_TRANSPOSITION' && (
             <FormControl fullWidth sx={{ mb: 2 }}>
