@@ -108,8 +108,34 @@ class Version(models.Model):
     class Meta:
         ordering = ['-created_at']
 
+    @property
+    def get_image(self):
+        """Return version's own image if exists, otherwise theme's image"""
+        return self.image if self.image else self.theme.image
+
+    @property
+    def get_audio(self):
+        """Return version's own audio if exists, otherwise theme's audio"""
+        return self.audio_file if self.audio_file else self.theme.audio
+
+    @property
+    def has_own_image(self):
+        """Return True if version has its own image, False if inheriting from theme"""
+        return bool(self.image)
+
+    @property
+    def has_own_audio(self):
+        """Return True if version has its own audio, False if inheriting from theme"""
+        return bool(self.audio_file)
+
 
 class SheetMusic(models.Model):
+    """
+    DEPRECATED: This model is being replaced by VersionFile with file_type='STANDARD_INSTRUMENT'.
+    Kept for backward compatibility with existing data. New sheet music should use VersionFile.
+
+    Migration path: All SheetMusic records will be migrated to VersionFile.
+    """
     TYPE_CHOICES = [
         ('MELODIA_PRINCIPAL', 'Melodía Principal'),
         ('MELODIA_SECUNDARIA', 'Melodía Secundaria'),
@@ -142,17 +168,20 @@ class SheetMusic(models.Model):
 
 class VersionFile(models.Model):
     """
-    Model to handle file uploads at the Version level.
+    Unified model to handle all file uploads for a Version.
 
-    For DUETO type: Upload 4 files per transposition (Bb, Eb, C, C_BASS)
-    For ENSAMBLE type: Upload 1 file per instrument
-    For STANDARD type: Upload general files for the version
+    File types:
+    - STANDARD_INSTRUMENT: Individual instrument parts for STANDARD versions (replaces SheetMusic)
+    - DUETO_TRANSPOSITION: Transposed scores for DUETO versions (Bb, Eb, F, C, C_BASS)
+    - ENSAMBLE_INSTRUMENT: Individual parts for ENSAMBLE versions
+    - STANDARD_SCORE: General scores for GRUPO_REDUCIDO versions
     """
 
     FILE_TYPE_CHOICES = [
+        ('STANDARD_INSTRUMENT', 'Standard - Instrumento Individual'),
         ('DUETO_TRANSPOSITION', 'Dueto - Transposición'),
         ('ENSAMBLE_INSTRUMENT', 'Ensamble - Instrumento'),
-        ('STANDARD_SCORE', 'Standard - Partitura General'),
+        ('STANDARD_SCORE', 'Grupo Reducido - Partitura General'),
     ]
 
     TUNING_CHOICES = [
@@ -161,6 +190,19 @@ class VersionFile(models.Model):
         ('F', 'Fa - Clave de Sol'),
         ('C', 'Do - Clave de Sol'),
         ('C_BASS', 'Do - Clave de Fa (Bass)'),
+    ]
+
+    # Sheet music type choices (from SheetMusic model, used for STANDARD_INSTRUMENT)
+    SHEET_TYPE_CHOICES = [
+        ('MELODIA_PRINCIPAL', 'Melodía Principal'),
+        ('MELODIA_SECUNDARIA', 'Melodía Secundaria'),
+        ('ARMONIA', 'Armonía'),
+        ('BAJO', 'Bajo'),
+    ]
+
+    CLEF_CHOICES = [
+        ('SOL', 'Clave de Sol'),
+        ('FA', 'Clave de Fa'),
     ]
 
     version = models.ForeignKey(Version, on_delete=models.CASCADE, related_name='version_files')
@@ -179,14 +221,35 @@ class VersionFile(models.Model):
         help_text='Afinación/transposición del archivo (solo para DUETO)'
     )
 
-    # Para ENSAMBLE: se usa instrument para identificar el instrumento específico
+    # Para ENSAMBLE y STANDARD_INSTRUMENT: se usa instrument para identificar el instrumento específico
     instrument = models.ForeignKey(
         Instrument,
         on_delete=models.CASCADE,
         related_name='version_files',
         blank=True,
         null=True,
-        help_text='Instrumento específico (solo para ENSAMBLE)'
+        help_text='Instrumento específico (para ENSAMBLE y STANDARD_INSTRUMENT)'
+    )
+
+    # Campos adicionales para STANDARD_INSTRUMENT (from SheetMusic model)
+    sheet_type = models.CharField(
+        max_length=20,
+        choices=SHEET_TYPE_CHOICES,
+        blank=True,
+        null=True,
+        help_text='Tipo de partitura (solo para STANDARD_INSTRUMENT)'
+    )
+    clef = models.CharField(
+        max_length=10,
+        choices=CLEF_CHOICES,
+        blank=True,
+        null=True,
+        help_text='Clave musical (solo para STANDARD_INSTRUMENT)'
+    )
+    tonalidad_relativa = models.CharField(
+        max_length=10,
+        blank=True,
+        help_text='Tonalidad calculada según la afinación del instrumento'
     )
 
     # Archivos
@@ -207,7 +270,10 @@ class VersionFile(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        if self.file_type == 'DUETO_TRANSPOSITION':
+        if self.file_type == 'STANDARD_INSTRUMENT' and self.instrument:
+            sheet_type_display = self.get_sheet_type_display() if self.sheet_type else 'Partitura'
+            return f"{self.version.theme.title} - {self.instrument.name} ({sheet_type_display})"
+        elif self.file_type == 'DUETO_TRANSPOSITION':
             return f"{self.version.theme.title} - Dueto {self.tuning}"
         elif self.file_type == 'ENSAMBLE_INSTRUMENT' and self.instrument:
             return f"{self.version.theme.title} - {self.instrument.name}"
@@ -218,6 +284,12 @@ class VersionFile(models.Model):
         ordering = ['-created_at']
         # Unique constraints based on file_type
         constraints = [
+            # For STANDARD_INSTRUMENT: version + instrument + sheet_type must be unique
+            models.UniqueConstraint(
+                fields=['version', 'instrument', 'sheet_type'],
+                condition=models.Q(file_type='STANDARD_INSTRUMENT'),
+                name='unique_version_standard_instrument_type'
+            ),
             # For DUETO: version + tuning must be unique
             models.UniqueConstraint(
                 fields=['version', 'tuning'],
@@ -236,6 +308,15 @@ class VersionFile(models.Model):
         """Validate model constraints"""
         from django.core.exceptions import ValidationError
 
+        # Validate STANDARD_INSTRUMENT type must have instrument, sheet_type, and clef
+        if self.file_type == 'STANDARD_INSTRUMENT':
+            if not self.instrument:
+                raise ValidationError({'instrument': 'Instrument is required for STANDARD_INSTRUMENT type'})
+            if not self.sheet_type:
+                raise ValidationError({'sheet_type': 'Sheet type is required for STANDARD_INSTRUMENT type'})
+            if not self.clef:
+                raise ValidationError({'clef': 'Clef is required for STANDARD_INSTRUMENT type'})
+
         # Validate DUETO type must have tuning
         if self.file_type == 'DUETO_TRANSPOSITION' and not self.tuning:
             raise ValidationError({'tuning': 'Tuning is required for DUETO_TRANSPOSITION type'})
@@ -245,11 +326,31 @@ class VersionFile(models.Model):
             raise ValidationError({'instrument': 'Instrument is required for ENSAMBLE_INSTRUMENT type'})
 
         # Validate that file_type matches version type
+        if self.file_type == 'STANDARD_INSTRUMENT' and self.version.type != 'STANDARD':
+            raise ValidationError({'file_type': 'STANDARD_INSTRUMENT can only be used with STANDARD versions'})
+
         if self.file_type == 'DUETO_TRANSPOSITION' and self.version.type != 'DUETO':
             raise ValidationError({'file_type': 'DUETO_TRANSPOSITION can only be used with DUETO versions'})
 
         if self.file_type == 'ENSAMBLE_INSTRUMENT' and self.version.type != 'ENSAMBLE':
             raise ValidationError({'file_type': 'ENSAMBLE_INSTRUMENT can only be used with ENSAMBLE versions'})
 
-        if self.file_type == 'STANDARD_SCORE' and self.version.type not in ['STANDARD', 'GRUPO_REDUCIDO']:
-            raise ValidationError({'file_type': 'STANDARD_SCORE can only be used with STANDARD or GRUPO_REDUCIDO versions'})
+        if self.file_type == 'STANDARD_SCORE' and self.version.type != 'GRUPO_REDUCIDO':
+            raise ValidationError({'file_type': 'STANDARD_SCORE can only be used with GRUPO_REDUCIDO versions'})
+
+    @property
+    def get_image(self):
+        """Return version's image (own or inherited from theme)"""
+        return self.version.get_image
+
+    @property
+    def get_audio(self):
+        """Return own audio if exists, otherwise inherit from version or theme"""
+        if self.audio:
+            return self.audio
+        return self.version.get_audio
+
+    @property
+    def has_own_audio(self):
+        """Return True if version file has its own audio"""
+        return bool(self.audio)
