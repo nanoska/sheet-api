@@ -12,6 +12,53 @@ This is a full-stack sheet music management system designed for wind orchestras 
 
 The system manages musical themes, their arrangements (versions), instruments with different tunings, sheet music files with automatic transposition calculations, and event/repertoire management.
 
+## Deployment Architecture
+
+### Standalone Distributed Service (Current Configuration)
+
+Sheet-API is configured as a **standalone microservice** that communicates via HTTP/HTTPS REST API:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Sheet-API (Standalone)                                 │
+│                                                          │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐             │
+│  │ Frontend │  │ Backend  │  │ Database │             │
+│  │ (React)  │◄─┤ (Django) │◄─┤ (Postgres)│             │
+│  │ :3000    │  │ :8000    │  │ :5432    │             │
+│  └──────────┘  └────┬─────┘  └──────────┘             │
+│                     │                                   │
+│  Internal Network: sheetmusic-network                   │
+└─────────────────────┼───────────────────────────────────┘
+                      │ Puerto 8000 expuesto
+                      ▼
+              ┌───────────────┐
+              │   HTTP REST   │
+              │   API público │
+              └───────┬───────┘
+                      │
+        ┌─────────────┼─────────────┐
+        ▼             ▼             ▼
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│ Jam Frontend │ │ Music Learn  │ │ Otros Apps   │
+│ (Vercel)     │ │ (Vercel)     │ │              │
+│ :3001        │ │ :3002        │ │              │
+└──────────────┘ └──────────────┘ └──────────────┘
+```
+
+**Key characteristics:**
+- **Backend expuesto**: Puerto 8000 accesible públicamente para requests API
+- **Red interna**: `sheetmusic-network` solo para comunicación db ↔ backend ↔ frontend
+- **CORS habilitado**: Acepta requests desde múltiples orígenes (localhost, jamdevientos.com, etc.)
+- **Stateless API**: Cada frontend se comunica vía HTTP/HTTPS REST
+- **Independiente**: No depende de Docker networks compartidas con otros proyectos
+
+**Benefits:**
+- ✅ Frontends pueden deployarse en diferentes servicios (Vercel, Netlify, etc.)
+- ✅ Escalado independiente de cada servicio
+- ✅ CDN global para frontends estáticos
+- ✅ Backend centralizado con una sola fuente de verdad
+
 ## Development Commands
 
 ### Docker Development (Recommended)

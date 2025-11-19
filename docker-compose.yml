@@ -19,7 +19,7 @@ services:
     command: >
       sh -c "python manage.py migrate &&
              python manage.py collectstatic --noinput --clear &&
-             gunicorn --bind 0.0.0.0:8000 sheetmusic_api.wsgi:application"
+             gunicorn --bind 0.0.0.0:8000 --workers 4 --timeout 120 --worker-tmp-dir /dev/shm sheetmusic_api.wsgi:application"
     volumes:
       - ./backend:/app
       - static_volume:/app/staticfiles
@@ -64,7 +64,9 @@ volumes:
   static_volume:
   media_volume:
 
-# Red para la comunicación entre servicios
+# Red interna para comunicación entre servicios de Sheet-API solamente
+# Esta red NO es compartida con otros proyectos (arquitectura distribuida)
 networks:
   sheetmusic-network:
     driver: bridge
+    internal: false  # Permite acceso a internet para descarga de dependencias
