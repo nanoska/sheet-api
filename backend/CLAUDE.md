@@ -26,7 +26,7 @@ This is a Django REST API for managing sheet music, designed specifically for wi
 ## Architecture
 
 ### Core Models Hierarchy
-The application follows a hierarchical structure:
+The application follows a hierarchical structure with file inheritance:
 
 1. **Theme** (Musical piece)
    - Contains: title, artist, tonality, description, audio, image
@@ -35,18 +35,41 @@ The application follows a hierarchical structure:
 2. **Version** (Arrangement of a theme)
    - Contains: title, type (Standard/Ensamble/Dueto/Grupo Reducido), audio_file, mus_file, notes
    - Belongs to one **Theme**
-   - Has many **SheetMusic** files
+   - Has many **VersionFile** records
+   - **File Inheritance**: If no image/audio, inherits from Theme (via @property)
 
 3. **Instrument** (Musical instrument with tuning)
    - Contains: name, family (wind/brass/percussion), tuning (Bb, Eb, F, C, etc.)
-   - Has many **SheetMusic** files
+   - Has many **VersionFile** records
 
-4. **SheetMusic** (Individual part for an instrument)
-   - Contains: type (melody/harmony/bass), clef, file, calculated relative tonality
-   - Belongs to one **Version** and one **Instrument**
-   - Unique constraint: version + instrument + type
+4. **VersionFile** (Unified model for all sheet music files) 🆕
+   - Replaces SheetMusic model with support for all version types
+   - Contains: file_type, instrument, sheet_type, clef, tonalidad_relativa, file, audio
+   - Belongs to one **Version** and optionally one **Instrument**
+   - **File Types**:
+     - `STANDARD_INSTRUMENT`: Individual parts for STANDARD versions (replaces SheetMusic)
+     - `DUETO_TRANSPOSITION`: Transposed scores for DUETO versions
+     - `ENSAMBLE_INSTRUMENT`: Individual parts for ENSAMBLE versions
+     - `STANDARD_SCORE`: General scores for GRUPO_REDUCIDO versions
+   - **File Inheritance**: Inherits image from Version→Theme, audio from self→Version→Theme
+   - **Unique Constraints**: Varies by file_type (e.g., version+instrument+sheet_type for STANDARD_INSTRUMENT)
+
+5. **SheetMusic** (DEPRECATED) ⚠️
+   - Legacy model kept for backward compatibility
+   - All new sheet music should use VersionFile with file_type='STANDARD_INSTRUMENT'
+   - Migration: All SheetMusic records migrated to VersionFile in migration 0011
 
 ### Key Features
+
+**File Inheritance System** 🆕: Three-level inheritance chain to avoid file duplication:
+- Theme → Version → VersionFile
+- Models provide `@property` methods:
+  - `Version.get_image`: Returns self.image or self.theme.image
+  - `Version.get_audio`: Returns self.audio_file or self.theme.audio
+  - `VersionFile.get_image`: Returns self.version.get_image
+  - `VersionFile.get_audio`: Returns self.audio or self.version.get_audio
+- Serializers expose `image_url`, `audio_url`, `has_own_image`, `has_own_audio` fields
+- Allows setting images/audio at Theme level and reusing across all Versions/VersionFiles
 
 **Automatic Transposition**: The system automatically calculates relative tonalities for transposing instruments using `music/utils.py:calculate_relative_tonality()`. When creating/updating sheet music, the API determines the correct written pitch based on the theme's concert pitch and the instrument's transposition.
 
@@ -62,9 +85,15 @@ The application follows a hierarchical structure:
 Base URL: `/api/v1/api/`
 
 - `themes/` - Theme management with nested versions access
-- `instruments/` - Instrument management with sheet music access
-- `versions/` - Version management with sheet music access
-- `sheet-music/` - Sheet music management with automatic transposition
+- `instruments/` - Instrument management with version files access
+- `versions/` - Version management with nested version_files
+  - Includes inheritance fields: `image_url`, `audio_url`, `has_own_image`, `has_own_audio`
+  - Nested `version_files` serializer for all file types
+- `version-files/` - VersionFile management (unified endpoint for all file types) 🆕
+  - Supports filtering by version, file_type, instrument
+  - Includes inheritance fields: `image_url`, `audio_url`, `has_own_audio`
+  - Replaces separate endpoints for different version types
+- `sheet-music/` - SheetMusic management (DEPRECATED, use version-files instead) ⚠️
 
 ### File Handling
 - **Media files**: Stored in `media/` directory
