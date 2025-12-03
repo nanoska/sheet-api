@@ -4,7 +4,8 @@ Django Admin configuration for Music Learning App
 from django.contrib import admin
 from .models import (
     Lesson, Exercise, UserProfile, LessonProgress,
-    ExerciseAttempt, Badge, UserBadge, Achievement, UserAchievement
+    ExerciseAttempt, Badge, UserBadge, Achievement, UserAchievement,
+    Challenge, ChallengeNote, UserChallengeProgress
 )
 
 
@@ -212,3 +213,82 @@ class UserAchievementAdmin(admin.ModelAdmin):
     def progress_percentage_display(self, obj):
         return f"{obj.progress_percentage}%"
     progress_percentage_display.short_description = 'Porcentaje de Progreso'
+
+
+class ChallengeNoteInline(admin.TabularInline):
+    """Inline for challenge notes within challenge admin"""
+    model = ChallengeNote
+    extra = 1
+    fields = ('note', 'octave', 'beats_to_hold', 'bpm', 'cents_threshold', 'order')
+
+
+@admin.register(Challenge)
+class ChallengeAdmin(admin.ModelAdmin):
+    """Admin for Challenge model"""
+    list_display = ('title', 'type', 'difficulty', 'order', 'is_published', 'xp_reward')
+    list_filter = ('type', 'difficulty', 'is_published', 'is_active')
+    search_fields = ('title', 'description', 'slug')
+    prepopulated_fields = {'slug': ('title',)}
+    inlines = [ChallengeNoteInline]
+
+    fieldsets = (
+        ('Información Básica', {
+            'fields': ('title', 'slug', 'description', 'type')
+        }),
+        ('Configuración', {
+            'fields': ('difficulty', 'order', 'xp_reward')
+        }),
+        ('Estado', {
+            'fields': ('is_active', 'is_published')
+        }),
+    )
+
+
+@admin.register(ChallengeNote)
+class ChallengeNoteAdmin(admin.ModelAdmin):
+    """Admin for ChallengeNote model"""
+    list_display = ('challenge', 'note', 'octave', 'beats_to_hold', 'bpm', 'cents_threshold', 'order')
+    list_filter = ('note', 'octave', 'challenge__type')
+    search_fields = ('challenge__title',)
+
+    fieldsets = (
+        ('Relación', {
+            'fields': ('challenge',)
+        }),
+        ('Nota', {
+            'fields': ('note', 'octave')
+        }),
+        ('Parámetros', {
+            'fields': ('beats_to_hold', 'bpm', 'cents_threshold', 'order')
+        }),
+    )
+
+
+@admin.register(UserChallengeProgress)
+class UserChallengeProgressAdmin(admin.ModelAdmin):
+    """Admin for UserChallengeProgress model"""
+    list_display = ('user', 'challenge', 'is_completed', 'stars', 'accuracy', 'best_accuracy', 'attempts')
+    list_filter = ('is_completed', 'stars', 'challenge__type', 'challenge__difficulty')
+    search_fields = ('user__username', 'challenge__title')
+    readonly_fields = (
+        'first_attempted_at', 'completed_at', 'last_attempted_at',
+        'created_at', 'updated_at'
+    )
+
+    fieldsets = (
+        ('Relación', {
+            'fields': ('user', 'challenge')
+        }),
+        ('Estado', {
+            'fields': ('is_completed', 'stars')
+        }),
+        ('Métricas', {
+            'fields': ('accuracy', 'best_accuracy', 'attempts', 'total_xp_earned')
+        }),
+        ('Timestamps', {
+            'fields': (
+                'first_attempted_at', 'completed_at', 'last_attempted_at',
+                'created_at', 'updated_at'
+            )
+        }),
+    )

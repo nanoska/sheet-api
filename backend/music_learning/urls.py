@@ -7,12 +7,14 @@ from .views import (
     LessonViewSet,
     UserProgressViewSet,
     BadgeViewSet,
-    AchievementViewSet
+    AchievementViewSet,
+    ChallengeViewSet
 )
 
 # Create router and register viewsets
 router = DefaultRouter()
 router.register(r'lessons', LessonViewSet, basename='lesson')
+router.register(r'challenges', ChallengeViewSet, basename='challenge')
 router.register(r'badges', BadgeViewSet, basename='badge')
 router.register(r'achievements', AchievementViewSet, basename='achievement')
 
@@ -23,6 +25,10 @@ user_progress_list = UserProgressViewSet.as_view({
 
 user_progress_lessons = UserProgressViewSet.as_view({
     'get': 'lessons'
+})
+
+user_progress_challenges = UserProgressViewSet.as_view({
+    'get': 'challenges'
 })
 
 user_stats = UserProgressViewSet.as_view({
@@ -36,10 +42,11 @@ user_streak_update = UserProgressViewSet.as_view({
 urlpatterns = [
     # Router URLs
     path('', include(router.urls)),
-    
+
     # User progress endpoints
     path('user/progress/', user_progress_list, name='user-progress'),
     path('user/progress/lessons/', user_progress_lessons, name='user-progress-lessons'),
+    path('user/progress/challenges/', user_progress_challenges, name='user-progress-challenges'),
     path('user/stats/', user_stats, name='user-stats'),
     path('user/streak/update/', user_streak_update, name='user-streak-update'),
 ]

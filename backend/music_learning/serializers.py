@@ -4,7 +4,8 @@ Serializers for Music Learning App API
 from rest_framework import serializers
 from .models import (
     Lesson, Exercise, UserProfile, LessonProgress,
-    ExerciseAttempt, Badge, UserBadge, Achievement, UserAchievement
+    ExerciseAttempt, Badge, UserBadge, Achievement, UserAchievement,
+    Challenge, ChallengeNote, UserChallengeProgress
 )
 
 
@@ -292,3 +293,112 @@ class AchievementSerializer(serializers.ModelSerializer):
             return user_achievement.completed_at
         except UserAchievement.DoesNotExist:
             return None
+
+
+class ChallengeNoteSerializer(serializers.ModelSerializer):
+    """Challenge note serializer with all parameters"""
+    class Meta:
+        model = ChallengeNote
+        fields = [
+            'id', 'note', 'octave', 'beats_to_hold',
+            'bpm', 'cents_threshold', 'order'
+        ]
+
+
+class ChallengeListSerializer(serializers.ModelSerializer):
+    """Challenge list serializer with basic info"""
+    notes_count = serializers.IntegerField(
+        source='notes.count',
+        read_only=True
+    )
+    user_progress = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Challenge
+        fields = [
+            'id', 'slug', 'title', 'description', 'type',
+            'difficulty', 'xp_reward', 'notes_count',
+            'user_progress', 'order'
+        ]
+
+    def get_user_progress(self, obj):
+        """Get user progress for this challenge"""
+        request = self.context.get('request')
+
+        if not request or not request.user.is_authenticated:
+            return None
+
+        try:
+            progress = UserChallengeProgress.objects.get(
+                user=request.user,
+                challenge=obj
+            )
+            return {
+                'is_completed': progress.is_completed,
+                'stars': progress.stars,
+                'accuracy': progress.accuracy,
+                'best_accuracy': progress.best_accuracy,
+                'attempts': progress.attempts
+            }
+        except UserChallengeProgress.DoesNotExist:
+            return None
+
+
+class ChallengeDetailSerializer(ChallengeListSerializer):
+    """Challenge detail serializer with nested notes"""
+    notes = ChallengeNoteSerializer(many=True, read_only=True)
+
+    class Meta(ChallengeListSerializer.Meta):
+        fields = ChallengeListSerializer.Meta.fields + ['notes']
+
+
+class UserChallengeProgressSerializer(serializers.ModelSerializer):
+    """User challenge progress serializer"""
+    challenge_id = serializers.UUIDField(source='challenge.id', read_only=True)
+    challenge_title = serializers.CharField(source='challenge.title', read_only=True)
+    challenge_slug = serializers.CharField(source='challenge.slug', read_only=True)
+
+    class Meta:
+        model = UserChallengeProgress
+        fields = [
+            'challenge_id', 'challenge_title', 'challenge_slug',
+            'is_completed', 'stars', 'accuracy', 'best_accuracy',
+            'attempts', 'total_xp_earned',
+            'first_attempted_at', 'completed_at', 'last_attempted_at'
+        ]
+
+
+class ChallengeCompleteRequestSerializer(serializers.Serializer):
+    """Request serializer for POST /challenges/{id}/complete/"""
+    accuracy = serializers.FloatField(
+        min_value=0,
+        max_value=100,
+        help_text="Porcentaje de precisión (0-100)"
+    )
+    beats_completed = serializers.IntegerField(
+        min_value=0,
+        help_text="Cantidad de beats completados correctamente"
+    )
+    total_beats = serializers.IntegerField(
+        min_value=1,
+        help_text="Cantidad total de beats en el desafío"
+    )
+
+    def validate(self, data):
+        """Validate that beats_completed doesn't exceed total_beats"""
+        if data['beats_completed'] > data['total_beats']:
+            raise serializers.ValidationError({
+                'beats_completed': 'Cannot exceed total_beats'
+            })
+        return data
+
+
+class ChallengeCompleteResponseSerializer(serializers.Serializer):
+    """Response serializer for POST /challenges/{id}/complete/"""
+    success = serializers.BooleanField()
+    stars = serializers.IntegerField()
+    accuracy = serializers.FloatField()
+    xp_earned = serializers.IntegerField()
+    new_level = serializers.IntegerField()
+    level_up = serializers.BooleanField()
+    unlocked_badges = BadgeInfoSerializer(many=True)

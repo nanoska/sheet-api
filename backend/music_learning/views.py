@@ -11,13 +11,16 @@ from datetime import datetime, timedelta
 
 from .models import (
     Lesson, Exercise, UserProfile, LessonProgress,
-    ExerciseAttempt, Badge, Achievement
+    ExerciseAttempt, Badge, Achievement,
+    Challenge, ChallengeNote, UserChallengeProgress
 )
 from .serializers import (
     LessonListSerializer, LessonDetailSerializer,
     UserProfileSerializer, LessonProgressSerializer,
     LessonCompleteRequestSerializer, BadgeSerializer,
-    AchievementSerializer, BadgeInfoSerializer
+    AchievementSerializer, BadgeInfoSerializer,
+    ChallengeListSerializer, ChallengeDetailSerializer,
+    UserChallengeProgressSerializer, ChallengeCompleteRequestSerializer
 )
 from .utils import get_or_create_user_profile, check_achievements, check_badges, unlock_next_lessons
 
@@ -232,9 +235,25 @@ class UserProgressViewSet(viewsets.ViewSet):
                 {"error": "Authentication required"},
                 status=status.HTTP_401_UNAUTHORIZED
             )
-        
+
         progress = LessonProgress.objects.filter(user=request.user)
         serializer = LessonProgressSerializer(progress, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def challenges(self, request):
+        """
+        Get user progress on all challenges
+        GET /api/v1/user/progress/challenges/
+        """
+        if not request.user.is_authenticated:
+            return Response(
+                {"error": "Authentication required"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        progress = UserChallengeProgress.objects.filter(user=request.user)
+        serializer = UserChallengeProgressSerializer(progress, many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
@@ -348,3 +367,102 @@ class AchievementViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Achievement.objects.filter(is_active=True)
     serializer_class = AchievementSerializer
     permission_classes = [AllowAny]
+
+
+class ChallengeViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for Challenge model
+    Provides list and retrieve actions
+    Custom action: complete
+    """
+    queryset = Challenge.objects.filter(is_published=True).prefetch_related('notes')
+    permission_classes = [AllowAny]
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return ChallengeDetailSerializer
+        return ChallengeListSerializer
+
+    @action(detail=True, methods=['post'], permission_classes=[AllowAny])
+    def complete(self, request, pk=None):
+        """
+        Complete a challenge with accuracy results
+        POST /api/v1/challenges/{id}/complete/
+
+        Request body:
+        {
+            "accuracy": 85.5,
+            "beats_completed": 15,
+            "total_beats": 16
+        }
+        """
+        challenge = self.get_object()
+
+        # Validate request data
+        serializer = ChallengeCompleteRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        accuracy = serializer.validated_data['accuracy']
+        beats_completed = serializer.validated_data['beats_completed']
+        total_beats = serializer.validated_data['total_beats']
+
+        # Require authentication for completion
+        if not request.user.is_authenticated:
+            return Response(
+                {"error": "Authentication required to complete challenges"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        user = request.user
+
+        # Get or create user profile
+        profile = get_or_create_user_profile(user)
+
+        # Get or create challenge progress
+        progress, created = UserChallengeProgress.objects.get_or_create(
+            user=user,
+            challenge=challenge
+        )
+
+        # Calculate stars based on accuracy
+        stars = progress.calculate_stars(accuracy)
+
+        # Calculate XP earned (base + bonus for high accuracy)
+        xp_earned = challenge.xp_reward
+        if stars == 3:
+            xp_earned = int(xp_earned * 1.5)  # 50% bonus for 3 stars
+        elif stars == 2:
+            xp_earned = int(xp_earned * 1.2)  # 20% bonus for 2 stars
+
+        # Update progress
+        old_level = profile.level
+        progress.update_progress(accuracy, xp_earned)
+
+        # Add XP to profile
+        profile.add_xp(xp_earned)
+
+        # Update stats
+        profile.total_exercises_completed += 1
+        profile.update_streak()
+        profile.save()
+
+        new_level = profile.level
+        level_up = new_level > old_level
+
+        # Check for unlocked badges
+        unlocked_badges = []
+        if progress.is_completed:
+            new_badges = check_badges(user)
+            unlocked_badges = BadgeInfoSerializer(new_badges, many=True).data
+            check_achievements(user)
+
+        # Return response
+        return Response({
+            'success': True,
+            'stars': progress.stars,
+            'accuracy': progress.accuracy,
+            'xp_earned': xp_earned,
+            'new_level': new_level,
+            'level_up': level_up,
+            'unlocked_badges': unlocked_badges
+        })

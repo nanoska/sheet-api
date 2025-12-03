@@ -107,6 +107,7 @@ class Exercise(models.Model):
         ('chord', 'Acordes'),
         ('interval', 'Intervalos'),
         ('theory', 'Teoría Musical'),
+        ('note-holding', 'Sostener Nota'),
     ]
 
     # Difficulty levels
@@ -588,3 +589,223 @@ class UserAchievement(models.Model):
         if self.achievement.target == 0:
             return 0
         return round((self.current_progress / self.achievement.target) * 100, 2)
+
+
+class Challenge(models.Model):
+    """Interactive musical challenge (e.g., hold a note with microphone)"""
+
+    # Difficulty levels
+    DIFFICULTY_CHOICES = [
+        ('beginner', 'Principiante'),
+        ('intermediate', 'Intermedio'),
+        ('advanced', 'Avanzado'),
+    ]
+
+    # Challenge types
+    TYPE_CHOICES = [
+        ('note-holding', 'Sostener Nota'),
+        ('pitch-matching', 'Igualar Tono'),
+        ('rhythm-clapping', 'Palmear Ritmo'),
+    ]
+
+    # Identification
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    slug = models.SlugField(unique=True, max_length=100)
+
+    # Content
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    type = models.CharField(max_length=50, choices=TYPE_CHOICES)
+
+    # Configuration
+    difficulty = models.CharField(max_length=20, choices=DIFFICULTY_CHOICES)
+    xp_reward = models.IntegerField(
+        default=50,
+        help_text="XP base por completar",
+        validators=[MinValueValidator(0)]
+    )
+
+    # Status
+    is_active = models.BooleanField(default=True)
+    is_published = models.BooleanField(default=False)
+
+    # Ordering
+    order = models.IntegerField(default=0)
+
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order', 'created_at']
+        verbose_name = 'Desafío'
+        verbose_name_plural = 'Desafíos'
+        indexes = [
+            models.Index(fields=['slug']),
+            models.Index(fields=['type', 'difficulty']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} ({self.get_difficulty_display()})"
+
+
+class ChallengeNote(models.Model):
+    """Individual note to hold in a challenge"""
+
+    challenge = models.ForeignKey(
+        Challenge,
+        on_delete=models.CASCADE,
+        related_name='notes'
+    )
+
+    # Note specification
+    note = models.CharField(
+        max_length=2,
+        help_text="Nota musical: C, D, E, F, G, A, B"
+    )
+    octave = models.IntegerField(
+        help_text="Octava: 3, 4, 5, etc.",
+        validators=[MinValueValidator(0), MaxValueValidator(8)]
+    )
+
+    # Challenge parameters
+    beats_to_hold = models.IntegerField(
+        help_text="Cantidad de beats a sostener",
+        validators=[MinValueValidator(1)]
+    )
+    bpm = models.IntegerField(
+        help_text="Tempo del metrónomo (beats por minuto)",
+        default=60,
+        validators=[MinValueValidator(40), MaxValueValidator(240)]
+    )
+    cents_threshold = models.IntegerField(
+        help_text="Margen de error en cents (±)",
+        default=15,
+        validators=[MinValueValidator(1), MaxValueValidator(50)]
+    )
+
+    # Ordering
+    order = models.IntegerField(
+        default=0,
+        help_text="Orden de la nota en la secuencia"
+    )
+
+    class Meta:
+        ordering = ['challenge', 'order']
+        verbose_name = 'Nota de Desafío'
+        verbose_name_plural = 'Notas de Desafío'
+        indexes = [
+            models.Index(fields=['challenge', 'order']),
+        ]
+
+    def __str__(self):
+        return f"{self.challenge.title} - {self.note}{self.octave} ({self.beats_to_hold} beats @ {self.bpm} BPM)"
+
+
+class UserChallengeProgress(models.Model):
+    """User progress and results on a challenge"""
+
+    # Relations
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='challenge_progress'
+    )
+    challenge = models.ForeignKey(
+        Challenge,
+        on_delete=models.CASCADE,
+        related_name='user_progress'
+    )
+
+    # Status
+    is_completed = models.BooleanField(default=False)
+
+    # Metrics
+    stars = models.IntegerField(
+        default=0,
+        help_text="0-3 estrellas basado en accuracy",
+        validators=[MinValueValidator(0), MaxValueValidator(3)]
+    )
+    accuracy = models.FloatField(
+        default=0.0,
+        help_text="Porcentaje de precisión (0-100)",
+        validators=[MinValueValidator(0), MaxValueValidator(100)]
+    )
+    best_accuracy = models.FloatField(
+        default=0.0,
+        help_text="Mejor accuracy alcanzado",
+        validators=[MinValueValidator(0), MaxValueValidator(100)]
+    )
+    attempts = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0)]
+    )
+
+    # XP earned
+    total_xp_earned = models.IntegerField(
+        default=0,
+        help_text="XP total ganado en este desafío",
+        validators=[MinValueValidator(0)]
+    )
+
+    # Timestamps
+    first_attempted_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    last_attempted_at = models.DateTimeField(null=True, blank=True)
+
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['user', 'challenge']
+        ordering = ['-updated_at']
+        verbose_name = 'Progreso de Desafío'
+        verbose_name_plural = 'Progresos de Desafíos'
+        indexes = [
+            models.Index(fields=['user', 'challenge']),
+            models.Index(fields=['is_completed', 'updated_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.challenge.title} ({self.accuracy:.1f}%)"
+
+    def calculate_stars(self, accuracy):
+        """Calculate stars based on accuracy percentage"""
+        if accuracy >= 90:
+            return 3
+        elif accuracy >= 75:
+            return 2
+        elif accuracy >= 60:
+            return 1
+        else:
+            return 0
+
+    def update_progress(self, accuracy, xp_earned):
+        """Update progress after an attempt"""
+        self.attempts += 1
+        self.accuracy = accuracy
+        self.last_attempted_at = timezone.now()
+
+        # Update best accuracy
+        if accuracy > self.best_accuracy:
+            self.best_accuracy = accuracy
+
+        # Calculate stars
+        stars = self.calculate_stars(accuracy)
+        if stars > self.stars:
+            self.stars = stars
+
+        # Mark as completed if got at least 1 star
+        if stars >= 1 and not self.is_completed:
+            self.is_completed = True
+            self.completed_at = timezone.now()
+
+        # First attempt timestamp
+        if self.attempts == 1:
+            self.first_attempted_at = timezone.now()
+
+        # Add XP
+        self.total_xp_earned += xp_earned
+
+        self.save()
