@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 from pathlib import Path
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,10 +22,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-ik1epl3=%d9s-@c&iv!y%($^@fx92ygh#yn%u=t(jc4x(e#!hi'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-ik1epl3=%d9s-@c&iv!y%($^@fx92ygh#yn%u=t(jc4x(e#!hi')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', 'true').lower() == 'true'
 
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost').split(',')
 
@@ -43,6 +44,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'django_filters',
     'drf_yasg',
+    'storages',
     'music',
     'events',
     'music_learning',
@@ -85,10 +87,11 @@ WSGI_APPLICATION = 'sheetmusic_api.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=600,
+        ssl_require=False,
+    )
 }
 
 
@@ -133,7 +136,7 @@ STATICFILES_DIRS = [
 ] if os.path.exists(os.path.join(BASE_DIR, 'static')) else []
 
 # Media files (uploaded files)
-MEDIA_URL = '/media/'
+MEDIA_URL = os.environ.get('MEDIA_URL', '/media/')
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Default primary key field type
@@ -164,16 +167,13 @@ SIMPLE_JWT = {
 }
 
 # CORS settings for development and jamdevientos.com
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://localhost:8000",
-    "https://jamdevientos.com",
-    "http://jamdevientos.com",
-]
+CORS_ALLOWED_ORIGINS = os.environ.get(
+    'CORS_ALLOWED_ORIGINS',
+    'http://localhost:3000,http://localhost:3001,http://localhost:8000,https://jamdevientos.com,http://jamdevientos.com'
+).split(',')
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = True  # Temporalmente para testing
+CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'true').lower() == 'true'
 CORS_ALLOWED_HEADERS = [
     'accept',
     'accept-encoding',
@@ -223,14 +223,39 @@ CACHES = {
 }
 
 # WhiteNoise configuration for serving static files
-STORAGES = {
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
-}
+R2_BUCKET_NAME = os.environ.get('R2_BUCKET_NAME')
+R2_ENDPOINT_URL = os.environ.get('R2_ENDPOINT_URL')
+R2_PUBLIC_URL = os.environ.get('R2_PUBLIC_URL')
+
+if R2_BUCKET_NAME and R2_ENDPOINT_URL:
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+    AWS_S3_ENDPOINT_URL = R2_ENDPOINT_URL
+    AWS_STORAGE_BUCKET_NAME = R2_BUCKET_NAME
+    AWS_ACCESS_KEY_ID = os.environ.get('R2_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = os.environ.get('R2_SECRET_ACCESS_KEY')
+    AWS_S3_REGION_NAME = os.environ.get('R2_REGION', 'auto')
+    AWS_S3_ADDRESSING_STYLE = 'virtual'
+    AWS_DEFAULT_ACL = None
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_QUERYSTRING_AUTH = False
+    if R2_PUBLIC_URL:
+        MEDIA_URL = f"{R2_PUBLIC_URL.rstrip('/')}/"
+else:
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
 
 # Music Learning App Configuration
 MUSIC_LEARNING_SETTINGS = {
